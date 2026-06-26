@@ -1,0 +1,1969 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Controle de Processos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+/* Variáveis Globais de Cores e Estilo (Dark Mode & Glassmorphism) */
+:root {
+    --bg-color: #0f172a; /* Slate 900 */
+    --panel-bg: rgba(30, 41, 59, 0.7); /* Slate 800 with opacity */
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --text-primary: #f8fafc; /* Slate 50 */
+    --text-secondary: #94a3b8; /* Slate 400 */
+    
+    /* Cores de Destaque */
+    --primary: #6366f1; /* Indigo 500 */
+    --primary-hover: #4f46e5;
+    --blue: #3b82f6;
+    --green: #10b981;
+    --purple: #8b5cf6;
+    --orange: #f59e0b;
+    --red: #ef4444;
+
+    --font-family: 'Inter', sans-serif;
+    --border-radius: 16px;
+    --transition: all 0.3s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-family);
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    overflow-x: hidden;
+    background-image: 
+        radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15), transparent 25%),
+        radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15), transparent 25%);
+}
+
+/* Utilitários */
+.glass-panel {
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: var(--transition);
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.btn-primary { background-color: var(--primary); color: white; }
+.btn-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
+
+.btn-green { background-color: var(--green); color: white; }
+.btn-green:hover { background-color: #059669; transform: translateY(-1px); }
+
+.btn-outline {
+    background-color: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-primary);
+}
+.btn-outline:hover { background-color: rgba(255, 255, 255, 0.05); }
+
+.btn-sm { padding: 0.25rem 0.75rem; font-size: 0.8rem; }
+
+.blue { color: var(--blue); }
+.green { color: var(--green); }
+.purple { color: var(--purple); }
+.orange { color: var(--orange); }
+
+.blue-bg { background-color: var(--blue); }
+.green-bg { background-color: var(--green); }
+.purple-bg { background-color: var(--purple); }
+.orange-bg { background-color: var(--orange); }
+
+/* Layout Principal */
+.app-container {
+    display: flex;
+    width: 100%;
+    height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 260px;
+    height: calc(100vh - 2rem);
+    margin: 1rem;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    flex-shrink: 0;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 2.5rem;
+}
+
+.nav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.nav-item {
+    text-decoration: none;
+    color: var(--text-secondary);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.nav-item:hover, .nav-item.active {
+    background-color: rgba(99, 102, 241, 0.1);
+    color: var(--primary);
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--panel-border);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.avatar { width: 40px; height: 40px; border-radius: 50%; }
+.user-details { display: flex; flex-direction: column; }
+.user-name { font-weight: 600; font-size: 0.9rem; }
+.user-role { font-size: 0.75rem; color: var(--text-secondary); }
+
+/* Main Content e Views */
+.main-content {
+    flex: 1;
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.view-section {
+    display: none; /* Escondido por padrão, controlado via JS */
+    padding: 1rem 2rem 2rem 1rem;
+    animation: fadeIn 0.3s ease;
+}
+
+.view-section.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    margin-top: 0.5rem;
+}
+
+.header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.header-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
+}
+
+.date-badge {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Dashboard: KPIs e Gráficos */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.kpi-card {
+    padding: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.kpi-icon {
+    font-size: 1.5rem;
+    padding: 1rem;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+}
+
+.kpi-data h3 { font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; margin-bottom: 0.25rem; }
+.kpi-value { font-size: 1.75rem; font-weight: 700; }
+
+.progress-bar-container { width: 100%; background-color: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+.progress-bar-container.mini { position: absolute; bottom: 0; left: 0; height: 4px; border-radius: 0; }
+.progress-bar { height: 100%; transition: width 1s ease-in-out; }
+
+.charts-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.chart-container { padding: 1.5rem; display: flex; flex-direction: column; }
+.chart-header { margin-bottom: 1rem; }
+.chart-header h3 { font-size: 1.1rem; font-weight: 600; }
+.chart-body { flex: 1; position: relative; min-height: 250px; display: flex; align-items: center; justify-content: center; }
+
+/* Dashboard: Bateria */
+.battery-list { display: flex; flex-direction: column; gap: 1.5rem; justify-content: center; width: 100%; padding: 0 1rem; }
+.battery-item { display: flex; flex-direction: column; gap: 0.5rem; }
+.battery-label { display: flex; font-size: 0.9rem; font-weight: 500; justify-content: center; }
+.battery-track { width: 100%; height: 24px; background-color: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative; }
+.battery-fill { height: 100%; background-color: var(--green); transition: width 0.5s ease; }
+
+/* Dashboard: Status */
+.status-section { padding: 1.5rem; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.section-header h3 { font-size: 1.1rem; font-weight: 600; }
+.department-list { display: flex; flex-direction: column; gap: 1rem; }
+.dept-item { background-color: rgba(255, 255, 255, 0.03); border: 1px solid var(--panel-border); border-radius: 12px; padding: 1.25rem; }
+.dept-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.dept-name { font-weight: 600; font-size: 1rem; }
+.dept-stats { font-size: 0.85rem; color: var(--text-secondary); }
+.dept-progress { height: 8px; background-color: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+
+/* Kanban View */
+.kanban-board {
+    display: flex;
+    gap: 1.5rem;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    height: calc(100vh - 180px);
+}
+
+.kanban-column {
+    min-width: 300px;
+    max-width: 320px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+}
+
+.kanban-column-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--panel-border);
+}
+
+.kanban-column-header h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.kanban-tasks {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-right: 0.5rem;
+}
+
+.kanban-task {
+    background-color: var(--bg-color);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: grab;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.kanban-task:active { cursor: grabbing; }
+.kanban-task:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+
+.kanban-task-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.5rem; }
+.kanban-task-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; }
+
+/* Relatórios View */
+.table-section { padding: 1.5rem; margin-top: 2rem; }
+.table-responsive { overflow-x: auto; }
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+.data-table th, .data-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--panel-border);
+}
+.data-table th {
+    font-weight: 600;
+    color: var(--text-secondary);
+    background-color: rgba(0,0,0,0.2);
+}
+.data-table tbody tr:hover {
+    background-color: rgba(255,255,255,0.03);
+}
+
+/* Modals */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    backdrop-filter: blur(5px);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 1000;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.active { opacity: 1; pointer-events: auto; }
+.modal-content {
+    width: 90%; max-width: 500px; padding: 2rem;
+    transform: translateY(20px); transition: transform 0.3s ease;
+}
+.modal-overlay.active .modal-content { transform: translateY(0); }
+
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.close-btn { background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; }
+.close-btn:hover { color: var(--text-primary); }
+
+.form-group { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-group label { font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); }
+.form-group input, .form-group select {
+    width: 100%; padding: 0.75rem;
+    background-color: rgba(0,0,0,0.2);
+    border: 1px solid var(--panel-border); border-radius: 8px;
+    color: var(--text-primary); font-family: var(--font-family); outline: none;
+}
+.form-group input:focus, .form-group select:focus { border-color: var(--primary); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+/* Responsividade */
+@media (max-width: 1024px) { .charts-section { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+    .app-container { flex-direction: column; }
+    .sidebar { width: calc(100% - 2rem); height: auto; margin-bottom: 0; }
+    .nav-menu { flex-direction: row; overflow-x: auto; padding-bottom: 0.5rem; }
+    .main-content { padding: 1rem; }
+    .kanban-board { flex-direction: column; height: auto; overflow: visible; }
+    .kanban-column { max-width: 100%; min-height: 200px; }
+}
+</style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar glass-panel">
+            <div class="logo">
+                <i class="fa-solid fa-chart-network"></i>
+                <h2>ProcessFlow</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" onclick="switchView('dashboard')" id="nav-dashboard"><i class="fa-solid fa-house"></i> Dashboard</a>
+                <a href="#" class="nav-item" onclick="switchView('kanban')" id="nav-kanban"><i class="fa-solid fa-list-check"></i> Tarefas Kanban</a>
+                <a href="#" class="nav-item" onclick="switchView('reports')" id="nav-reports"><i class="fa-solid fa-chart-pie"></i> Relatórios</a>
+                <a href="#" class="nav-item" onclick="syncToCloud()" id="nav-export" style="color: var(--green); margin-top: auto; border-color: var(--green);"><i class="fa-solid fa-cloud-arrow-up"></i> Atualizar Painel Online</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <img src="https://ui-avatars.com/api/?name=Thais+B&background=6366f1&color=fff" alt="User Avatar" class="avatar">
+                    <div class="user-details">
+                        <span class="user-name">Thais B.</span>
+                        <span class="user-role">Analista de Processos</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <!-- ================= VIEW: DASHBOARD ================= -->
+            <div id="view-dashboard" class="view-section active">
+                <header class="header">
+                    <div>
+                        <h1>Visão Geral do Projeto</h1>
+                        <p class="subtitle">Acompanhe o desempenho do levantamento e mapeamento de processos</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-outline" onclick="openSectorsModal()"><i class="fa-solid fa-layer-group"></i> Gerenciar Setores</button>
+                        <button class="btn btn-primary" onclick="openModal()"><i class="fa-solid fa-plus"></i> Novo Processo</button>
+                        <div class="date-badge">
+                            <i class="fa-regular fa-calendar"></i> Início: 01/06/2026
+                        </div>
+                    </div>
+                </header>
+
+                <section class="kpi-grid">
+                    <div class="kpi-card glass-panel">
+                        <div class="kpi-icon blue"><i class="fa-solid fa-layer-group"></i></div>
+                        <div class="kpi-data">
+                            <h3>Total de Processos</h3>
+                            <p class="kpi-value" id="kpi-total">0</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-panel">
+                        <div class="kpi-icon green"><i class="fa-solid fa-check-double"></i></div>
+                        <div class="kpi-data">
+                            <h3>Processos Mapeados</h3>
+                            <p class="kpi-value" id="kpi-mapped">0</p>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-panel">
+                        <div class="kpi-icon purple"><i class="fa-solid fa-spinner"></i></div>
+                        <div class="kpi-data">
+                            <h3>Progresso Global</h3>
+                            <p class="kpi-value" id="kpi-progress">0%</p>
+                        </div>
+                        <div class="progress-bar-container mini">
+                            <div class="progress-bar purple-bg" id="kpi-progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-panel">
+                        <div class="kpi-icon orange"><i class="fa-solid fa-clock"></i></div>
+                        <div class="kpi-data">
+                            <h3>Dias Decorridos</h3>
+                            <p class="kpi-value" id="kpi-days">0</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+                    <div class="section-header" style="margin-bottom: 1rem;">
+                        <h3>Esteira do Kanban (Pipeline)</h3>
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: center; justify-content: space-between; overflow-x: auto; padding-bottom: 0.5rem;">
+                        
+                        <div style="flex: 1; min-width: 120px; text-align: center; background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 8px; padding: 1rem;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">A Fazer</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);" id="pipe-todo">0</div>
+                        </div>
+
+                        <i class="fa-solid fa-chevron-right" style="color: var(--text-secondary); font-size: 0.8rem;"></i>
+                        
+                        <div style="flex: 1; min-width: 120px; text-align: center; background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 8px; padding: 1rem;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Em Entrevista</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);" id="pipe-interview">0</div>
+                        </div>
+
+                        <i class="fa-solid fa-chevron-right" style="color: var(--text-secondary); font-size: 0.8rem;"></i>
+
+                        <div style="flex: 1; min-width: 120px; text-align: center; background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 8px; padding: 1rem;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Desenhando</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);" id="pipe-drawing">0</div>
+                        </div>
+
+                        <i class="fa-solid fa-chevron-right" style="color: var(--text-secondary); font-size: 0.8rem;"></i>
+
+                        <div style="flex: 1; min-width: 120px; text-align: center; background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 8px; padding: 1rem;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Validação</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);" id="pipe-validation">0</div>
+                        </div>
+
+                        <i class="fa-solid fa-chevron-right" style="color: var(--text-secondary); font-size: 0.8rem;"></i>
+
+                        <div style="flex: 1; min-width: 120px; text-align: center; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 1rem;">
+                            <div style="font-size: 0.8rem; color: #818cf8; margin-bottom: 0.5rem;">Concluído</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);" id="pipe-done">0</div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <section class="charts-section" style="grid-template-columns: 1fr;">
+                    <div class="chart-container glass-panel" style="padding-bottom: 0;">
+                        <div class="chart-header">
+                            <h3>Progresso por Área (Visão Macro)</h3>
+                        </div>
+                        <div class="chart-body battery-list" id="battery-chart-container" style="min-height: auto; padding-bottom: 1.5rem;">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="charts-section">
+                    <div class="chart-container glass-panel">
+                        <div class="chart-header">
+                            <h3>Quantidade de Processos por Setor</h3>
+                        </div>
+                        <div class="chart-body">
+                            <canvas id="sectorChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-container glass-panel">
+                        <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3>Distribuição do Tempo Gasto (Total)</h3>
+                            <div id="totalTimeBadge" style="background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99,102,241,0.5); padding: 5px 10px; border-radius: 6px; font-weight: bold; color: #818cf8; font-size: 0.85rem;">
+                                Total: 0 min
+                            </div>
+                        </div>
+                        <div class="chart-body">
+                            <canvas id="timeSpentProcessChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="charts-section" style="grid-template-columns: 1fr;">
+                    <div class="chart-container glass-panel">
+                        <div class="chart-header">
+                            <h3>Tempo Total Gasto por Dia</h3>
+                        </div>
+                        <div class="chart-body">
+                            <canvas id="timeSpentDayChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="status-section glass-panel">
+                    <div class="section-header">
+                        <h3>Status Atual do Levantamento (Visão Detalhada)</h3>
+                    </div>
+                    <div class="department-list" id="department-list">
+                    </div>
+                </section>
+            </div>
+
+            <!-- ================= VIEW: KANBAN ================= -->
+            <div id="view-kanban" class="view-section" style="display: none;">
+                <header class="header">
+                    <div>
+                        <h1>Quadro de Tarefas (Kanban)</h1>
+                        <p class="subtitle">Gerencie o fluxo de trabalho dos seus mapeamentos</p>
+                    </div>
+                    <div class="header-actions" style="display: flex; gap: 1rem; align-items: center;">
+                        <select id="kanbanFilterArea" onchange="renderKanban()" style="padding: 0.6rem 1rem; background-color: rgba(0,0,0,0.2); border: 1px solid var(--panel-border); border-radius: 8px; color: var(--text-primary); font-family: var(--font-family); outline: none;">
+                            <option value="all">Todas as Áreas</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="openKanbanModal()"><i class="fa-solid fa-plus"></i> Nova Tarefa</button>
+                    </div>
+                </header>
+
+                <div class="kanban-board">
+                    <div class="kanban-column glass-panel" data-status="todo" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="kanban-column-header">
+                            <h3>A Fazer</h3>
+                        </div>
+                        <div class="kanban-tasks" id="kanban-todo"></div>
+                    </div>
+                    
+                    <div class="kanban-column glass-panel" data-status="interview" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="kanban-column-header">
+                            <h3>Em Entrevista</h3>
+                        </div>
+                        <div class="kanban-tasks" id="kanban-interview"></div>
+                    </div>
+
+                    <div class="kanban-column glass-panel" data-status="drawing" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="kanban-column-header">
+                            <h3>Desenhando Fluxo</h3>
+                        </div>
+                        <div class="kanban-tasks" id="kanban-drawing"></div>
+                    </div>
+
+                    <div class="kanban-column glass-panel" data-status="validation" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="kanban-column-header">
+                            <h3>Em Validação</h3>
+                        </div>
+                        <div class="kanban-tasks" id="kanban-validation"></div>
+                    </div>
+
+                    <div class="kanban-column glass-panel" data-status="done" ondrop="drop(event)" ondragover="allowDrop(event)">
+                        <div class="kanban-column-header">
+                            <h3>Concluído</h3>
+                        </div>
+                        <div class="kanban-tasks" id="kanban-done"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= VIEW: REPORTS ================= -->
+            <div id="view-reports" class="view-section" style="display: none;">
+                <header class="header">
+                    <div>
+                        <h1>Relatórios e Exportação</h1>
+                        <p class="subtitle">Analise os dados detalhados e exporte para Excel</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-green" onclick="exportToExcel()"><i class="fa-solid fa-file-excel"></i> Exportar para XLSX</button>
+                    </div>
+                </header>
+
+                <section class="charts-section" style="grid-template-columns: 1fr;">
+                    <div class="chart-container glass-panel">
+                        <div class="chart-header">
+                            <h3>Tempo Gasto por Processo Específico (Minutos)</h3>
+                        </div>
+                        <div class="chart-body" style="height: 300px;">
+                            <canvas id="reportDetailedChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="table-section glass-panel">
+                    <div class="section-header">
+                        <h3>Listagem de Processos Mapeados</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table" id="reportTable">
+                            <thead>
+                                <tr>
+                                    <th>Processo Mapeado</th>
+                                    <th>Área</th>
+                                    <th>Tempo de Execução do Processo</th>
+                                    <th>Data do Mapeamento</th>
+                                    <th>Tempo Entrevista</th>
+                                    <th>Tempo Construção</th>
+                                    <th>Tempo Total</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-table-body">
+                                <!-- Gerado via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal Novo Processo (Dashboard Metric) -->
+    <div class="modal-overlay" id="processModal">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2 id="processModalTitle">Registrar Processo Mapeado</h2>
+                <button class="close-btn" onclick="closeModal('processModal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="processForm" onsubmit="saveProcess(event)">
+                <input type="hidden" id="procId" value="">
+                <div class="form-group">
+                    <label for="procName">Nome do Processo</label>
+                    <input type="text" id="procName" placeholder="Ex: Reunião de Liderança" required>
+                </div>
+                <div class="form-group">
+                    <label for="procArea">Área / Subdepartamento</label>
+                    <select id="procArea" required>
+                        <!-- Gerado via JS -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="procDate">Data do Levantamento</label>
+                    <input type="date" id="procDate">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="procTimeInterview">Tempo de Entrevista (min)</label>
+                        <input type="number" id="procTimeInterview" placeholder="Ex: 20" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="procTimeDraw">Tempo Construindo Fluxo (min)</label>
+                        <input type="number" id="procTimeDraw" placeholder="Ex: 35" min="0" required>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="procTimeExecution">Tempo de Execução do Processo (min)</label>
+                    <input type="number" id="procTimeExecution" placeholder="Tempo que o colaborador gasta" min="0">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('processModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Processo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Nova Tarefa (Kanban) -->
+    <div class="modal-overlay" id="kanbanModal">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2>Nova Tarefa Kanban</h2>
+                <button class="close-btn" onclick="closeModal('kanbanModal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="kanbanForm" onsubmit="saveKanbanTask(event)">
+                <div class="form-group">
+                    <label for="taskName">Título da Tarefa</label>
+                    <input type="text" id="taskName" placeholder="Ex: Mapear folha de pagamento" required>
+                </div>
+                <div class="form-group">
+                    <label for="taskDesc">Descrição / Observações</label>
+                    <input type="text" id="taskDesc" placeholder="Falar com o João do DP">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('kanbanModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar Tarefa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Gerenciar Setores -->
+    <div class="modal-overlay" id="sectorsModal">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2>Gerenciar Setores e Metas</h2>
+                <button class="close-btn" onclick="closeModal('sectorsModal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Adicionar Novo Setor</h3>
+                <form id="sectorForm" onsubmit="addSector(event)" style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" id="newSectorName" placeholder="Nome (Ex: Logística)" required style="flex: 2;">
+                    <input type="number" id="newSectorTotal" placeholder="Meta / Total" min="1" required style="flex: 1;">
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </form>
+            </div>
+
+            <div>
+                <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Setores Atuais</h3>
+                <div id="sectorsList" style="max-height: 200px; overflow-y: auto; background: var(--panel-bg); border-radius: 8px; padding: 10px; border: 1px solid var(--panel-border);">
+                    <!-- Gerado via JS -->
+                </div>
+            </div>
+
+            <div class="modal-actions" style="justify-content: space-between; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--panel-border);">
+                <button type="button" class="btn btn-outline" style="color: var(--red); border-color: var(--red);" onclick="clearAllData()">Limpar Histórico (Zerar Tudo)</button>
+                <button type="button" class="btn btn-primary" onclick="closeModal('sectorsModal')">Concluído</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (Excel Export) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- App Logic -->
+    <script>
+// Dados base estruturais
+const baseData = {
+    startDate: new Date('2026-06-01T00:00:00')
+};
+
+// Cores para os gráficos
+const colors = {
+    primary: '#6366f1',
+    blue: '#3b82f6',
+    green: '#10b981',
+    purple: '#8b5cf6',
+    orange: '#f59e0b',
+    red: '#ef4444',
+    bg: 'rgba(255,255,255,0.1)',
+    text: '#94a3b8'
+};
+
+let customProcesses = [];
+let customSectors = [];
+let sectorChartInstance = null;
+let timeSpentProcessChartInstance = null;
+let timeSpentDayChartInstance = null;
+
+// Inicialização da Aplicação
+document.addEventListener('DOMContentLoaded', async () => {
+    // Configura layout de visualização apenas leitura para o link online
+    if (window.location.href.includes('github.io') || window.location.search.includes('view=readonly')) {
+        document.body.classList.add('readonly-mode');
+    }
+
+    await loadData();
+    updateDashboard();
+    populateSectorDropdown();
+});
+
+// === Gerenciamento de Dados (LocalStorage ou Nuvem) ===
+async function loadData() {
+    // Modo Nuvem: Se estiver acessando via link público, puxa direto do JSONBin
+    if (window.location.href.includes('github.io') || window.location.search.includes('view=readonly')) {
+        try {
+            const res = await fetch('https://api.jsonbin.io/v3/b/6a3edc90f5f4af5e29360453');
+            const data = await res.json();
+            customProcesses = data.record.customProcesses || [];
+            customSectors = data.record.customSectors || [];
+            return;
+        } catch(e) {
+            console.error("Erro ao puxar dados da nuvem", e);
+        }
+    }
+
+    // Modo Local: Usa o LocalStorage
+    if (window.__STATIC_DATA__) {
+        customProcesses = window.__STATIC_PROCESSES__;
+        customSectors = window.__STATIC_SECTORS__;
+        return;
+    }
+
+    const storedProcesses = localStorage.getItem('processFlowData');
+    if (storedProcesses) {
+        customProcesses = JSON.parse(storedProcesses);
+    } else {
+        customProcesses = [];
+    }
+
+    // Se estiver vazio, popula com a lista completa do Viminas
+    if (customProcesses.length === 0) {
+        const list = [
+            {"area": "Financeiro", "name": "Pagamentos diários da fábrica, filiais e empresas do Grupo Viminas."},
+            {"area": "Financeiro", "name": "Revisão e atualização do relatório de pagamentos semanais para fluxo de caixa."},
+            {"area": "Financeiro", "name": "Conferência dos títulos gerados no DDA e validação se os lançamentos estão registrados em nosso sistema."},
+            {"area": "Financeiro", "name": "Controle de títulos em aberto no sistema."},
+            {"area": "Financeiro", "name": "Controle de adiantamento a fornecedores."},
+            {"area": "Financeiro", "name": "Lançamento de movimentação de notas fiscais (gestores, representantes e prestadores sob responsabilidade do financeiro)."},
+            {"area": "Financeiro", "name": "Lançamento e conferência de reembolsos de prestação de contas de despesas realizadas."},
+            {"area": "Financeiro", "name": "Acerto de transportadoras (conferência e baixa de CTEs)."},
+            {"area": "Financeiro", "name": "Conferência e baixa de fornecedores de vidro (Cebrace e Guardian)."},
+            {"area": "Financeiro", "name": "Conciliação geral do contas a pagar."},
+            {"area": "Financeiro", "name": "Conciliação de cartão de crédito corporativo."},
+            {"area": "Financeiro", "name": "Conferência e arquivamento dos comprovantes dos títulos pagos"},
+            {"area": "Financeiro", "name": "Arquivamento e envio à contabilidade de documentos da diretoria e da holding."},
+            {"area": "Financeiro", "name": "Controle de pagamento de IPTU, IPVA e demais taxas."},
+            {"area": "Financeiro", "name": "Controle das contas da diretoria, incluindo envio de recibos para recebimento de aluguel, controle de IPTU de imóveis e contas da EDP/Escelsa."},
+            {"area": "Financeiro", "name": "Emissão de relatório de comissão dos representantes"},
+            {"area": "Financeiro", "name": "Emissão de relatórios de comissão Fopag"},
+            {"area": "Financeiro", "name": "Envio diário da posição bancária (saldo bancário)"},
+            {"area": "Financeiro", "name": "Emissão diária do relatório de prestação de contas (pagamentos) para Maurício"},
+            {"area": "Financeiro", "name": "Controle dos vales de funcionário (venda de vidro)"},
+            {"area": "Recursos Humanos", "name": "Recrutamento e Seleção"},
+            {"area": "Recursos Humanos", "name": "Treinamento"},
+            {"area": "Recursos Humanos", "name": "Alterações contratuais (avaliação de fluxo)"},
+            {"area": "Recursos Humanos", "name": "Gerenciamento indicadores READ"},
+            {"area": "Recursos Humanos", "name": "Endomarketing ( Programa e ações internas / comemorações)"},
+            {"area": "Recursos Humanos", "name": "Lançamento de NF"},
+            {"area": "Recursos Humanos", "name": "Atualização de DEC"},
+            {"area": "Recursos Humanos", "name": "Gerenciamento Feedback"},
+            {"area": "Recursos Humanos", "name": "Atendimento às demandas individuais dos colaboradores (solicitações de declarações)"},
+            {"area": "Recursos Humanos", "name": "Apoio à Coordenação Industrial"},
+            {"area": "SESMT", "name": "Paradão de Segurança;"},
+            {"area": "SESMT", "name": "Reunião de Liderança;"},
+            {"area": "SESMT", "name": "Inspeção de Campo;"},
+            {"area": "SESMT", "name": "Processo de Integração"},
+            {"area": "SESMT", "name": "Gerenciamento e acompanhamento da CIPA;"},
+            {"area": "SESMT", "name": "Emissão do PPP (e-social a partir de Dezembro de 2022);"},
+            {"area": "SESMT", "name": "Investigação de acidentes;"},
+            {"area": "SESMT", "name": "Atendimento à ocorrências (classificação nesse processo);"},
+            {"area": "SESMT", "name": "Gerenciamento de Saúde (7 subprocessos: Acompanhamento de acidentados e afastados, Controle de atestado, Controle de periódicos, Controle de ager...)"},
+            {"area": "SESMT", "name": "Validação de APR;"},
+            {"area": "SESMT", "name": "Definição de temas de DDS;"},
+            {"area": "SESMT", "name": "Validação de documentação de terceiros;"},
+            {"area": "SESMT", "name": "Controle de documentação legal - Fábrica e Filiais (PGR, PCMSO, LTCAT, AET, PCA, Laudos NR's);"},
+            {"area": "SESMT", "name": "Lançamento e conferência de NF;"},
+            {"area": "SESMT", "name": "Controle de mudança de função;"},
+            {"area": "SESMT", "name": "Gerenciamento da Brigada de Emergência (PAE);"},
+            {"area": "SESMT", "name": "Gerenciamento de EPIs (Testes, Auditoria de fichas de EPI, Controle de autorização de EPI);"},
+            {"area": "SESMT", "name": "Aplicação de Treinamentos (demanda vem do RH);"},
+            {"area": "SESMT", "name": "Emissão de carteira de autorização para atividades;"},
+            {"area": "SESMT", "name": "Gestão de indicadores READ;"},
+            {"area": "SESMT", "name": "Elaboração do Plano de Segurança (Anual);"},
+            {"area": "Depto Pessoal", "name": "Controle de terceiros"},
+            {"area": "Depto Pessoal", "name": "Controle de ponto"},
+            {"area": "Depto Pessoal", "name": "Integração"},
+            {"area": "Depto Pessoal", "name": "Admissão"},
+            {"area": "Depto Pessoal", "name": "Adiantamento"},
+            {"area": "Depto Pessoal", "name": "Gerenciamento indicadores READ"},
+            {"area": "Depto Pessoal", "name": "Folha de Pagamento"},
+            {"area": "Depto Pessoal", "name": "Rescisão"},
+            {"area": "Depto Pessoal", "name": "Benefícios previdenciários"},
+            {"area": "Depto Pessoal", "name": "Gerenciamento de Benefícios dos colaboradores"},
+            {"area": "Depto Pessoal", "name": "Férias"},
+            {"area": "Depto Pessoal", "name": "Alterações cadastrais (execução do sistema)"},
+            {"area": "Financeiro", "name": "Recebimento de pagamento liberação pedido"},
+            {"area": "Financeiro", "name": "Solicitação de link pagamento"},
+            {"area": "Financeiro", "name": "Acerto de cliente de carga"},
+            {"area": "Financeiro", "name": "Envio de NF"},
+            {"area": "Financeiro", "name": "Envio de boleto"},
+            {"area": "Financeiro", "name": "Envio de relatório contas a receber"},
+            {"area": "Financeiro", "name": "Envio de relatório de pedido liberados"},
+            {"area": "Financeiro", "name": "Envio de relatório de vales gerados e liberados"},
+            {"area": "Financeiro", "name": "Envio de relatório de contratos"},
+            {"area": "Financeiro", "name": "Conciliação das notas faturadas em contrato"},
+            {"area": "Financeiro", "name": "Análise de cadastro clientes (novos cadastros e limite de cadastros ativos)"},
+            {"area": "Financeiro", "name": "Atendimento Balcão"},
+            {"area": "Financeiro", "name": "Faturamento de pedidos clientes balcão"},
+            {"area": "Financeiro", "name": "Bloqueio e desbloqueio de cadastro"},
+            {"area": "Financeiro", "name": "Envio de deposito para Banco"},
+            {"area": "Financeiro", "name": "Conciliação de cartão de crédito (vendas realizadas e recebimentos)"},
+            {"area": "Financeiro", "name": "Conciliação de recebimento"},
+            {"area": "Financeiro", "name": "Atendimento a representantes e filiais para análise de limite de crédito e novos cadastros"},
+            {"area": "Financeiro", "name": "Acompanhamento de cobrança"},
+            {"area": "Financeiro", "name": "Controle dos clientes \"BO de entrega\" e canhoto com seguro de crédito"},
+            {"area": "Financeiro", "name": "Envio Mensal do relatório de contas a receber para Maurício"},
+            {"area": "Financeiro", "name": "Conferência e arquivamento dos comprovantes de recebimento"},
+            {"area": "Financeiro", "name": "Cancelamento dos pedidos VENCIDOS no sistema"}
+        ];
+
+        list.forEach((item, index) => {
+            customProcesses.push({
+                id: Date.now() + index,
+                name: item.name,
+                area: item.area,
+                date: '',
+                interviewTime: 0,
+                drawTime: 0,
+                executionTime: 0,
+                status: 'todo'
+            });
+        });
+    }
+
+    const storedSectors = localStorage.getItem('processFlowSectors') || localStorage.getItem('processSectorsData');
+    if (storedSectors) {
+        customSectors = JSON.parse(storedSectors);
+    } else {
+        customSectors = [];
+    }
+
+    // Auto-correção: Garantir os 4 setores exatos
+    const exactSectors = [
+        { id: 1, name: 'Financeiro', total: 43, legacyMapped: 0 },
+        { id: 2, name: 'Recursos Humanos', total: 10, legacyMapped: 0 },
+        { id: 3, name: 'SESMT', total: 21, legacyMapped: 0 },
+        { id: 4, name: 'Depto Pessoal', total: 12, legacyMapped: 0 }
+    ];
+    let sectorsModified = false;
+    if (customSectors.length === 0 || customSectors.some(s => s.name.includes('RH - '))) {
+        customSectors = exactSectors;
+        sectorsModified = true;
+    }
+
+    // Auto-correção: processos em "A Fazer" não devem ter data de levantamento
+    let modified = false;
+    customProcesses.forEach(p => {
+        if ((!p.status || p.status === 'todo') && p.date !== '') {
+            p.date = '';
+            modified = true;
+        }
+    });
+    if (modified || sectorsModified) saveToLocalStorage();
+}
+
+function saveToLocalStorage() {
+    localStorage.setItem('processFlowData', JSON.stringify(customProcesses));
+    localStorage.setItem('processFlowSectors', JSON.stringify(customSectors));
+}
+
+// Formatador auxiliar (minutos para horas e minutos)
+function formatMinutes(mins) {
+    if (mins < 60) return `${mins} min`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+// === Lógica do Dashboard ===
+function updateDashboard() {
+    calculateKPIs();
+    renderBatteryChart();
+    renderDepartmentList();
+    
+    // Gráficos Chart.js
+    renderSectorChart();
+    renderTimeSpentProcessChart();
+    renderTimeSpentDayChart();
+}
+
+function calculateKPIs() {
+    let totalProcesses = customProcesses.length; // Conta independente da etapa
+    let totalMapped = 0;
+
+    customSectors.forEach(dept => {
+        // Mapeados via formulário para esta área (somente os concluídos)
+        const addedForDept = customProcesses.filter(p => p.area === dept.name && p.status === 'done').length;
+        const currentMapped = (dept.legacyMapped || 0) + addedForDept;
+        
+        totalMapped += currentMapped;
+    });
+
+    const progressPercentage = totalProcesses === 0 ? 0 : Math.round((totalMapped / totalProcesses) * 100);
+
+    const today = new Date('2026-06-26T12:00:00'); // Contexto atual
+    const timeDiff = Math.abs(today.getTime() - baseData.startDate.getTime());
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+    document.getElementById('kpi-total').textContent = totalProcesses;
+    document.getElementById('kpi-mapped').textContent = totalMapped;
+    document.getElementById('kpi-progress').textContent = `${progressPercentage}%`;
+    document.getElementById('kpi-progress-bar').style.width = `${progressPercentage}%`;
+    document.getElementById('kpi-days').textContent = daysDiff;
+
+    // Calcula Pipeline do Kanban
+    const pipe = { todo: 0, interview: 0, drawing: 0, validation: 0, done: 0 };
+    customProcesses.forEach(p => {
+        if(pipe[p.status] !== undefined) {
+            pipe[p.status]++;
+        } else {
+            pipe['todo']++;
+        }
+    });
+
+    const elTodo = document.getElementById('pipe-todo');
+    if(elTodo) {
+        elTodo.textContent = pipe.todo;
+        document.getElementById('pipe-interview').textContent = pipe.interview;
+        document.getElementById('pipe-drawing').textContent = pipe.drawing;
+        document.getElementById('pipe-validation').textContent = pipe.validation;
+        document.getElementById('pipe-done').textContent = pipe.done;
+    }
+}
+
+// === Renderizações ===
+
+function renderBatteryChart() {
+    const container = document.getElementById('battery-chart-container');
+    container.innerHTML = '';
+
+    const areas = {};
+
+    customSectors.forEach(dept => {
+        const addedForDept = customProcesses.filter(p => p.area === dept.name && p.status === 'done').length;
+        const currentMapped = (dept.legacyMapped || 0) + addedForDept;
+
+        const macroArea = dept.name; // Preservar os 4 setores originais
+
+        if(!areas[macroArea]) {
+            areas[macroArea] = { total: 0, mapped: 0 };
+        }
+
+        areas[macroArea].total += dept.total;
+        areas[macroArea].mapped += currentMapped;
+    });
+
+    for (const [areaName, data] of Object.entries(areas)) {
+        const percentage = data.total === 0 ? 0 : Math.round((data.mapped / data.total) * 100);
+        
+        container.innerHTML += `
+            <div class="battery-item">
+                <div class="battery-label" style="justify-content: center;">
+                    <span>${areaName} - ${percentage}% (${data.mapped}/${data.total})</span>
+                </div>
+                <div class="battery-track">
+                    <div class="battery-fill" style="width: ${percentage > 100 ? 100 : percentage}%; background-color: ${percentage >= 100 ? colors.green : colors.purple}"></div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function renderDepartmentList() {
+    const container = document.getElementById('department-list');
+    container.innerHTML = '';
+
+    customSectors.forEach(dept => {
+        const addedForDept = customProcesses.filter(p => p.area === dept.name && p.status === 'done').length;
+        const currentMapped = dept.legacyMapped + addedForDept;
+        const percentage = dept.total === 0 ? 0 : Math.round((currentMapped / dept.total) * 100);
+        
+        let barColor = 'bg';
+        if(percentage >= 100) barColor = 'green-bg';
+        else if (percentage > 50) barColor = 'purple-bg';
+        else if (percentage > 0) barColor = 'blue-bg';
+        else barColor = 'orange-bg';
+
+        container.innerHTML += `
+            <div class="dept-item">
+                <div class="dept-header">
+                    <span class="dept-name">${dept.name}</span>
+                    <span class="dept-stats">${currentMapped} de ${dept.total} mapeados (${percentage}%)</span>
+                </div>
+                <div class="dept-progress">
+                    <div class="progress-bar ${barColor}" style="width: ${percentage > 100 ? 100 : percentage}%"></div>
+                </div>
+            </div>
+        `;
+    });
+}
+
+// Configuração Global do Chart.js
+Chart.defaults.color = colors.text;
+Chart.defaults.font.family = "'Inter', sans-serif";
+
+// 1. Gráfico de Processos por Setor
+function renderSectorChart() {
+    const ctx = document.getElementById('sectorChart').getContext('2d');
+    
+    const labels = customSectors.map(d => d.name);
+    const dataMapped = customSectors.map(d => {
+        const added = customProcesses.filter(p => p.area === d.name && p.status === 'done').length;
+        return (d.legacyMapped || 0) + added;
+    });
+    const dataPending = customSectors.map((d, index) => {
+        const pending = d.total - dataMapped[index];
+        return pending < 0 ? 0 : pending;
+    });
+
+    if (sectorChartInstance) sectorChartInstance.destroy();
+
+    sectorChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Mapeados',
+                    data: dataMapped,
+                    backgroundColor: colors.green,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Pendentes',
+                    data: dataPending,
+                    backgroundColor: colors.bg,
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' } }
+            },
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+// 2. Gráfico de Tempo Total Gasto
+function renderTimeSpentProcessChart() {
+    const ctx = document.getElementById('timeSpentProcessChart').getContext('2d');
+    
+    // Somar o tempo total de todas as tarefas
+    let totalInterview = 0;
+    let totalDraw = 0;
+    
+    customProcesses.forEach(p => {
+        totalInterview += p.interviewTime || 0;
+        totalDraw += p.drawTime || 0;
+    });
+
+    const grandTotal = totalInterview + totalDraw;
+    const badgeEl = document.getElementById('totalTimeBadge');
+    if (badgeEl) {
+        badgeEl.innerHTML = `Tempo Total: <span style="color:#fff">${formatMinutes(grandTotal)}</span>`;
+    }
+
+    if (timeSpentProcessChartInstance) timeSpentProcessChartInstance.destroy();
+
+    // Plugin customizado para desenhar o texto sobre a barra
+    const customDatalabels = {
+        id: 'customDatalabels',
+        afterDatasetsDraw(chart, args, pluginOptions) {
+            const { ctx, data } = chart;
+            ctx.save();
+            ctx.font = 'bold 13px "Inter", sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            
+            chart.getDatasetMeta(0).data.forEach((datapoint, index) => {
+                const value = data.datasets[0].data[index];
+                if (value > 0) {
+                    ctx.fillText(formatMinutes(value), datapoint.x, datapoint.y - 5);
+                }
+            });
+            ctx.restore();
+        }
+    };
+
+    timeSpentProcessChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Entrevista', 'Construção do Fluxo'],
+            datasets: [
+                {
+                    label: 'Tempo Total Gasto',
+                    data: [totalInterview, totalDraw],
+                    backgroundColor: [colors.blue, colors.purple],
+                    borderRadius: 8
+                }
+            ]
+        },
+        plugins: [customDatalabels],
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 25 } }, // Dá espaço para o rótulo
+            scales: {
+                x: { grid: { display: false } },
+                y: { 
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    title: { display: true, text: 'Tempo em Minutos', color: colors.text }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Total: ${formatMinutes(context.raw)}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 3. Gráfico de Tempo por Dia
+function renderTimeSpentDayChart() {
+    const ctx = document.getElementById('timeSpentDayChart').getContext('2d');
+    
+    // Agrupar dados por data
+    const groupedByDate = {};
+    
+    customProcesses.forEach(p => {
+        if (!p.date) return; // Ignora cards que estão sem data
+        
+        // Formatar data (YYYY-MM-DD) para (DD/MM/YYYY) para exibição amigável
+        const parts = p.date.split('-');
+        if (parts.length !== 3) return;
+        const [year, month, day] = parts;
+        const dateStr = `${day}/${month}/${year}`;
+
+        if (!groupedByDate[dateStr]) {
+            groupedByDate[dateStr] = { interview: 0, draw: 0 };
+        }
+        groupedByDate[dateStr].interview += (p.interviewTime || 0);
+        groupedByDate[dateStr].draw += (p.drawTime || 0);
+    });
+
+    // Ordenar datas
+    const labels = Object.keys(groupedByDate).sort((a, b) => {
+        const [da, ma, ya] = a.split('/');
+        const [db, mb, yb] = b.split('/');
+        return new Date(ya, ma-1, da) - new Date(yb, mb-1, db);
+    });
+
+    const dataInterview = labels.map(date => groupedByDate[date].interview);
+    const dataDraw = labels.map(date => groupedByDate[date].draw);
+
+    if (timeSpentDayChartInstance) timeSpentDayChartInstance.destroy();
+
+    timeSpentDayChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Total Entrevistas',
+                    data: dataInterview,
+                    backgroundColor: colors.blue,
+                    borderRadius: 4
+                },
+                {
+                    label: 'Total Construção Fluxo',
+                    data: dataDraw,
+                    backgroundColor: colors.purple,
+                    borderRadius: 4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, grid: { display: false } },
+                y: { 
+                    stacked: true, 
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    title: { display: true, text: 'Tempo Total em Minutos', color: colors.text }
+                }
+            },
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${formatMinutes(context.raw)}`;
+                        },
+                        afterBody: function(context) {
+                            const idx = context[0].dataIndex;
+                            const total = dataInterview[idx] + dataDraw[idx];
+                            return `\nTempo Total no Dia: ${formatMinutes(total)}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// === Modal e Formulário ===
+function openModal() {
+    document.getElementById('procId').value = '';
+    document.getElementById('processModalTitle').textContent = 'Registrar Processo Mapeado';
+    document.getElementById('processModal').classList.add('active');
+}
+
+function openKanbanModal() {
+    document.getElementById('kanbanModal').classList.add('active');
+}
+
+function closeModal(modalId) {
+    if(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        const form = document.getElementById(modalId.replace('Modal', 'Form'));
+        if(form) form.reset();
+    } else {
+        document.getElementById('processModal').classList.remove('active');
+        document.getElementById('processForm').reset();
+    }
+}
+
+function saveProcess(e) {
+    e.preventDefault();
+
+    const idField = document.getElementById('procId').value;
+    const name = document.getElementById('procName').value;
+    const area = document.getElementById('procArea').value;
+    const date = document.getElementById('procDate').value;
+    const interviewTime = parseInt(document.getElementById('procTimeInterview').value);
+    const drawTime = parseInt(document.getElementById('procTimeDraw').value);
+    const executionTime = parseInt(document.getElementById('procTimeExecution').value) || 0;
+
+    if (idField) {
+        // Editando
+        const process = customProcesses.find(p => p.id === parseInt(idField));
+        if (process) {
+            process.name = name;
+            process.area = area;
+            process.date = date;
+            process.interviewTime = interviewTime;
+            process.drawTime = drawTime;
+            process.executionTime = executionTime;
+        }
+    } else {
+        // Novo
+        const newProcess = {
+            id: Date.now(),
+            name,
+            area,
+            date,
+            interviewTime,
+            drawTime,
+            executionTime,
+            status: 'done' // Processos criados no dashboard vão direto para concluído
+        };
+        customProcesses.push(newProcess);
+    }
+
+    saveToLocalStorage();
+    
+    closeModal('processModal');
+    updateDashboard(); // Re-renderiza Dashboard
+    
+    // Atualiza outras abas caso estejam ativas
+    if(document.getElementById('view-kanban').classList.contains('active')) renderKanban();
+    if(document.getElementById('view-reports').classList.contains('active')) renderReports();
+}
+
+function saveKanbanTask(e) {
+    e.preventDefault();
+    const name = document.getElementById('taskName').value;
+    const desc = document.getElementById('taskDesc').value;
+
+    const newProcess = {
+        id: Date.now(),
+        name: name,
+        area: 'Não Definida', // Pode ser editado depois
+        date: new Date().toISOString().split('T')[0],
+        interviewTime: 0,
+        drawTime: 0,
+        status: 'todo',
+        description: desc
+    };
+
+    customProcesses.push(newProcess);
+    saveToLocalStorage();
+    closeModal('kanbanModal');
+    renderKanban();
+}
+
+// === Navegação (Views) ===
+function switchView(viewId) {
+    // Esconder todas
+    document.querySelectorAll('.view-section').forEach(section => {
+        section.classList.remove('active');
+        section.style.display = 'none';
+    });
+    
+    // Mostrar a selecionada
+    const targetView = document.getElementById('view-' + viewId);
+    if(targetView) {
+        targetView.classList.add('active');
+        targetView.style.display = 'block';
+    }
+
+    // Atualizar menu lateral
+    document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    const activeNav = document.getElementById('nav-' + viewId);
+    if (activeNav) activeNav.classList.add('active');
+
+    // Executar funções específicas da tela
+    if (viewId === 'kanban') {
+        renderKanban();
+    } else if (viewId === 'reports') {
+        renderReports();
+    } else {
+        updateDashboard();
+    }
+}
+
+// === Kanban Lógica ===
+function renderKanban() {
+    const columns = {
+        'todo': document.getElementById('kanban-todo'),
+        'interview': document.getElementById('kanban-interview'),
+        'drawing': document.getElementById('kanban-drawing'),
+        'validation': document.getElementById('kanban-validation'),
+        'done': document.getElementById('kanban-done')
+    };
+
+    Object.values(columns).forEach(col => col.innerHTML = '');
+
+    // Lógica do filtro
+    const filterSelect = document.getElementById('kanbanFilterArea');
+    if(filterSelect) {
+        const val = filterSelect.value;
+        filterSelect.innerHTML = '<option value="all">Todas as Áreas</option>';
+        customSectors.forEach(s => {
+            filterSelect.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+        });
+        // Restaura valor se ainda existir
+        if(Array.from(filterSelect.options).some(o => o.value === val)) {
+            filterSelect.value = val;
+        } else {
+            filterSelect.value = 'all';
+        }
+    }
+    
+    const currentFilter = filterSelect ? filterSelect.value : 'all';
+    const filteredProcesses = currentFilter === 'all' ? customProcesses : customProcesses.filter(p => p.area === currentFilter);
+
+    filteredProcesses.forEach(p => {
+        const status = p.status || 'todo';
+        const card = document.createElement('div');
+        card.className = 'kanban-card';
+        card.style = 'padding: 1rem; margin-bottom: 1rem; cursor: grab; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 8px; color: var(--text-primary); transition: transform 0.2s;';
+        card.draggable = true;
+        card.id = 'task-' + p.id;
+        card.ondragstart = drag;
+        
+        const totalTime = (p.interviewTime || 0) + (p.drawTime || 0);
+        const timeStr = totalTime > 0 ? formatMinutes(totalTime) : '--';
+        
+        card.innerHTML = `
+            <div style="display:flex; justify-content: space-between; align-items:flex-start;">
+                <h4 style="margin:0 0 0.5rem 0; font-size: 0.95rem;">${p.name}</h4>
+                <div>
+                    <button onclick="editProcessItem(${p.id})" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding: 0 5px;"><i class="fa-solid fa-pen"></i></button>
+                    <button onclick="deleteProcessItem(${p.id})" style="background:transparent; border:none; color:var(--red); cursor:pointer; padding: 0 0 5px 5px;"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+            <span style="display:inline-block; font-size: 0.75rem; background: rgba(99, 102, 241, 0.2); color: #818cf8; padding: 2px 8px; border-radius: 12px; margin-bottom: 0.8rem; border: 1px solid rgba(99, 102, 241, 0.3);">${p.area || 'Sem Área'}</span>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); display:flex; justify-content: space-between;">
+                <span><i class="far fa-calendar"></i> ${p.date ? p.date.split('-').reverse().join('/') : '--/--/----'}</span>
+                <span><i class="far fa-clock"></i> ${timeStr}</span>
+            </div>
+        `;
+        
+        if(columns[status]) {
+            columns[status].appendChild(card);
+        } else {
+            columns['todo'].appendChild(card);
+        }
+    });
+}
+
+function allowDrop(ev) {
+    ev.preventDefault();
+}
+
+function drag(ev) {
+    ev.dataTransfer.setData("text", ev.target.id);
+}
+
+function drop(ev) {
+    ev.preventDefault();
+    var data = ev.dataTransfer.getData("text");
+    var card = document.getElementById(data);
+    
+    var column = ev.target.closest('.kanban-column');
+    if (column && card) {
+        var container = column.querySelector('.kanban-tasks');
+        if(container) {
+            container.appendChild(card);
+        }
+        
+        var newStatus = column.getAttribute('data-status');
+        var taskId = parseInt(data.replace('task-', ''));
+        var process = customProcesses.find(p => p.id === taskId);
+        if (process) {
+            process.status = newStatus;
+            saveToLocalStorage();
+            updateDashboard(); // Atualizar números caso algo mude
+        }
+    }
+}
+
+// === Relatórios Lógica ===
+let reportDetailedChartInstance = null;
+
+function renderReports() {
+    const tbody = document.getElementById('report-table-body');
+    tbody.innerHTML = '';
+    
+    customProcesses.forEach(p => {
+        const tr = document.createElement('tr');
+        const totalTime = (p.interviewTime || 0) + (p.drawTime || 0);
+        tr.innerHTML = `
+            <td>${p.name}</td>
+            <td>${p.area || '-'}</td>
+            <td style="color: var(--orange); font-weight: 500;">${p.executionTime ? formatMinutes(p.executionTime) : 'Não Inf.'}</td>
+            <td>${p.date ? p.date.split('-').reverse().join('/') : '-'}</td>
+            <td>${p.interviewTime ? formatMinutes(p.interviewTime) : '0'}</td>
+            <td>${p.drawTime ? formatMinutes(p.drawTime) : '0'}</td>
+            <td style="font-weight: 600; color: var(--green);">${formatMinutes(totalTime)}</td>
+            <td>
+                <button onclick="editProcessItem(${p.id})" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding-right: 5px;"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteProcessItem(${p.id})" style="background:transparent; border:none; color:var(--red); cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    renderReportsChart();
+}
+
+function renderReportsChart() {
+    const ctx = document.getElementById('reportDetailedChart').getContext('2d');
+    
+    const labels = customProcesses.map(p => p.name);
+    const dataTimes = customProcesses.map(p => (p.interviewTime || 0) + (p.drawTime || 0));
+
+    if (reportDetailedChartInstance) reportDetailedChartInstance.destroy();
+
+    reportDetailedChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Tempo Total (minutos)',
+                data: dataTimes,
+                backgroundColor: colors.blue,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { grid: { display: false } },
+                y: { 
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    title: { display: true, text: 'Tempo em Minutos', color: colors.text }
+                }
+            }
+        }
+    });
+}
+
+function exportToExcel() {
+    const data = customProcesses.map(p => ({
+        'Processo Mapeado': p.name,
+        'Área': p.area || 'Não Definida',
+        'Data do Mapeamento': p.date ? p.date.split('-').reverse().join('/') : 'Não Definida',
+        'Tempo Entrevista (min)': p.interviewTime || 0,
+        'Tempo Construção Fluxo (min)': p.drawTime || 0,
+        'Tempo Total de Mapeamento (min)': (p.interviewTime || 0) + (p.drawTime || 0),
+        'Tempo de Execução do Processo (min)': p.executionTime || 0,
+        'Status Atual': p.status === 'done' ? 'Concluído' : p.status || 'Pendente'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Relatório de Processos");
+    
+    XLSX.writeFile(wb, "Relatorio_Processos_Mapeados.xlsx");
+}
+
+// === Gerenciamento de Setores ===
+function populateSectorDropdown() {
+    const select = document.getElementById('procArea');
+    if(select) {
+        select.innerHTML = '';
+        customSectors.forEach(sector => {
+            const option = document.createElement('option');
+            option.value = sector.name;
+            option.textContent = sector.name;
+            select.appendChild(option);
+        });
+    }
+}
+
+function openSectorsModal() {
+    document.getElementById('sectorsModal').classList.add('active');
+    renderSectorsList();
+}
+
+function renderSectorsList() {
+    const container = document.getElementById('sectorsList');
+    if(!container) return;
+    container.innerHTML = '';
+    
+    if(customSectors.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-secondary); text-align: center;">Nenhum setor cadastrado.</p>';
+        return;
+    }
+
+    customSectors.forEach(sector => {
+        const div = document.createElement('div');
+        div.style = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);';
+        
+        div.innerHTML = `
+            <div>
+                <strong style="color: var(--text-primary);">${sector.name}</strong>
+                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 10px;">Meta: ${sector.total} processos</span>
+            </div>
+            <button onclick="deleteSector(${sector.id})" class="btn" style="padding: 4px 8px; background: transparent; color: var(--red); border: 1px solid var(--red);"><i class="fa-solid fa-trash"></i></button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function addSector(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('newSectorName');
+    const totalInput = document.getElementById('newSectorTotal');
+    
+    const newSector = {
+        id: Date.now(),
+        name: nameInput.value,
+        total: parseInt(totalInput.value),
+        legacyMapped: 0
+    };
+    
+    customSectors.push(newSector);
+    saveToLocalStorage();
+    
+    nameInput.value = '';
+    totalInput.value = '';
+    
+    renderSectorsList();
+    populateSectorDropdown();
+    updateDashboard();
+}
+
+function deleteSector(id) {
+    if(confirm('Tem certeza que deseja excluir este setor? Os processos já mapeados para ele não serão excluídos, mas poderão perder a referência do setor.')) {
+        customSectors = customSectors.filter(s => s.id !== id);
+        saveToLocalStorage();
+        renderSectorsList();
+        populateSectorDropdown();
+        updateDashboard();
+    }
+}
+
+function clearAllData() {
+    if(confirm('ATENÇÃO: Você tem certeza que deseja apagar TODO o histórico? Isso apagará todos os processos cadastrados e setores. A ação não pode ser desfeita.')) {
+        localStorage.removeItem('processFlowData');
+        localStorage.removeItem('processSectorsData');
+        
+        customProcesses = [];
+        customSectors = [];
+        
+        // Zera os formulários e atualiza
+        document.getElementById('sectorsList').innerHTML = '';
+        populateSectorDropdown();
+        updateDashboard();
+        
+        alert('Histórico limpo com sucesso! Agora você pode começar do zero.');
+        closeModal('sectorsModal');
+        
+        // Se estiver no kanban ou relatórios, re-renderiza
+        renderKanban();
+        renderReports();
+    }
+}
+
+// === Exclusão Individual de Processos ===
+function deleteProcessItem(id) {
+    if(confirm('Tem certeza que deseja excluir este processo permanentemente?')) {
+        customProcesses = customProcesses.filter(p => p.id !== id);
+        saveToLocalStorage();
+        
+        // Re-renderizar as telas ativas
+        updateDashboard();
+        
+        // Verifica qual tela está ativa para atualizar imediatamente
+        if(document.getElementById('view-kanban').classList.contains('active')) {
+            renderKanban();
+        }
+        if(document.getElementById('view-reports').classList.contains('active')) {
+            renderReports();
+        }
+    }
+}
+
+function editProcessItem(id) {
+    const process = customProcesses.find(p => p.id === id);
+    if (!process) return;
+
+    // Preencher modal
+    document.getElementById('procId').value = process.id;
+    document.getElementById('procName').value = process.name;
+    
+    // Garantir que a option da área exista no select
+    const areaSelect = document.getElementById('procArea');
+    let optionExists = Array.from(areaSelect.options).some(opt => opt.value === process.area);
+    if (!optionExists && process.area) {
+        const tempOpt = document.createElement('option');
+        tempOpt.value = process.area;
+        tempOpt.textContent = process.area;
+        areaSelect.appendChild(tempOpt);
+    }
+    
+    areaSelect.value = process.area || '';
+    document.getElementById('procDate').value = process.date;
+    document.getElementById('procTimeInterview').value = process.interviewTime || 0;
+    document.getElementById('procTimeDraw').value = process.drawTime || 0;
+    document.getElementById('procTimeExecution').value = process.executionTime || 0;
+
+    // Atualizar título e mostrar modal
+    document.getElementById('processModalTitle').textContent = 'Editar Processo';
+    document.getElementById('processModal').classList.add('active');
+}
+
+// === Sincronização para a Nuvem ===
+async function syncToCloud() {
+    const btn = document.getElementById('nav-export');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sincronizando...';
+    btn.style.pointerEvents = 'none';
+
+    try {
+        const response = await fetch('https://api.jsonbin.io/v3/b/6a3edc90f5f4af5e29360453', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': '$2a$10$fGtjYayc3FeasmXffgFGVeQVG6MDo1R920hV2mbEQCG///Z8SRksG',
+                'X-Bin-Private': 'false'
+            },
+            body: JSON.stringify({ customProcesses, customSectors })
+        });
+
+        if(response.ok) {
+            alert('🚀 SUCESSO! Banco de Dados da nuvem atualizado.\n\nQualquer pessoa que acessar o seu link oficial do GitHub agora verá exatamente a tela como está aqui.');
+        } else {
+            alert('Ocorreu um erro ao enviar para a nuvem.');
+        }
+    } catch(e) {
+        alert('Erro de conexão ao tentar sincronizar.');
+    }
+
+    btn.innerHTML = originalHTML;
+    btn.style.pointerEvents = 'auto';
+}
+
+function importViminasData() {
+    if(!confirm("Atenção: Isso vai APAGAR o seu histórico atual de processos e injetar a nova lista completa de 86 processos com seus respectivos setores. Deseja continuar?")) return;
+
+    // Zera tudo
+    customProcesses = [];
+    customSectors = [];
+
+    const list = [
+        {"area": "Financeiro", "name": "Pagamentos diários da fábrica, filiais e empresas do Grupo Viminas."},
+        {"area": "Financeiro", "name": "Revisão e atualização do relatório de pagamentos semanais para fluxo de caixa."},
+        {"area": "Financeiro", "name": "Conferência dos títulos gerados no DDA e validação se os lançamentos estão registrados em nosso sistema."},
+        {"area": "Financeiro", "name": "Controle de títulos em aberto no sistema."},
+        {"area": "Financeiro", "name": "Controle de adiantamento a fornecedores."},
+        {"area": "Financeiro", "name": "Lançamento de movimentação de notas fiscais (gestores, representantes e prestadores sob responsabilidade do financeiro)."},
+        {"area": "Financeiro", "name": "Lançamento e conferência de reembolsos de prestação de contas de despesas realizadas."},
+        {"area": "Financeiro", "name": "Acerto de transportadoras (conferência e baixa de CTEs)."},
+        {"area": "Financeiro", "name": "Conferência e baixa de fornecedores de vidro (Cebrace e Guardian)."},
+        {"area": "Financeiro", "name": "Conciliação geral do contas a pagar."},
+        {"area": "Financeiro", "name": "Conciliação de cartão de crédito corporativo."},
+        {"area": "Financeiro", "name": "Conferência e arquivamento dos comprovantes dos títulos pagos"},
+        {"area": "Financeiro", "name": "Arquivamento e envio à contabilidade de documentos da diretoria e da holding."},
+        {"area": "Financeiro", "name": "Controle de pagamento de IPTU, IPVA e demais taxas."},
+        {"area": "Financeiro", "name": "Controle das contas da diretoria, incluindo envio de recibos para recebimento de aluguel, controle de IPTU de imóveis e contas da EDP/Escelsa."},
+        {"area": "Financeiro", "name": "Emissão de relatório de comissão dos representantes"},
+        {"area": "Financeiro", "name": "Emissão de relatórios de comissão Fopag"},
+        {"area": "Financeiro", "name": "Envio diário da posição bancária (saldo bancário)"},
+        {"area": "Financeiro", "name": "Emissão diária do relatório de prestação de contas (pagamentos) para Maurício"},
+        {"area": "Financeiro", "name": "Controle dos vales de funcionário (venda de vidro)"},
+        {"area": "Recursos Humanos", "name": "Recrutamento e Seleção"},
+        {"area": "Recursos Humanos", "name": "Treinamento"},
+        {"area": "Recursos Humanos", "name": "Alterações contratuais (avaliação de fluxo)"},
+        {"area": "Recursos Humanos", "name": "Gerenciamento indicadores READ"},
+        {"area": "Recursos Humanos", "name": "Endomarketing ( Programa e ações internas / comemorações)"},
+        {"area": "Recursos Humanos", "name": "Lançamento de NF"},
+        {"area": "Recursos Humanos", "name": "Atualização de DEC"},
+        {"area": "Recursos Humanos", "name": "Gerenciamento Feedback"},
+        {"area": "Recursos Humanos", "name": "Atendimento às demandas individuais dos colaboradores (solicitações de declarações)"},
+        {"area": "Recursos Humanos", "name": "Apoio à Coordenação Industrial"},
+        {"area": "SESMT", "name": "Paradão de Segurança;"},
+        {"area": "SESMT", "name": "Reunião de Liderança;"},
+        {"area": "SESMT", "name": "Inspeção de Campo;"},
+        {"area": "SESMT", "name": "Processo de Integração"},
+        {"area": "SESMT", "name": "Gerenciamento e acompanhamento da CIPA;"},
+        {"area": "SESMT", "name": "Emissão do PPP (e-social a partir de Dezembro de 2022);"},
+        {"area": "SESMT", "name": "Investigação de acidentes;"},
+        {"area": "SESMT", "name": "Atendimento à ocorrências (classificação nesse processo);"},
+        {"area": "SESMT", "name": "Gerenciamento de Saúde (7 subprocessos: Acompanhamento de acidentados e afastados, Controle de atestado, Controle de periódicos, Controle de ager...)"},
+        {"area": "SESMT", "name": "Validação de APR;"},
+        {"area": "SESMT", "name": "Definição de temas de DDS;"},
+        {"area": "SESMT", "name": "Validação de documentação de terceiros;"},
+        {"area": "SESMT", "name": "Controle de documentação legal - Fábrica e Filiais (PGR, PCMSO, LTCAT, AET, PCA, Laudos NR's);"},
+        {"area": "SESMT", "name": "Lançamento e conferência de NF;"},
+        {"area": "SESMT", "name": "Controle de mudança de função;"},
+        {"area": "SESMT", "name": "Gerenciamento da Brigada de Emergência (PAE);"},
+        {"area": "SESMT", "name": "Gerenciamento de EPIs (Testes, Auditoria de fichas de EPI, Controle de autorização de EPI);"},
+        {"area": "SESMT", "name": "Aplicação de Treinamentos (demanda vem do RH);"},
+        {"area": "SESMT", "name": "Emissão de carteira de autorização para atividades;"},
+        {"area": "SESMT", "name": "Gestão de indicadores READ;"},
+        {"area": "SESMT", "name": "Elaboração do Plano de Segurança (Anual);"},
+        {"area": "Depto Pessoal", "name": "Controle de terceiros"},
+        {"area": "Depto Pessoal", "name": "Controle de ponto"},
+        {"area": "Depto Pessoal", "name": "Integração"},
+        {"area": "Depto Pessoal", "name": "Admissão"},
+        {"area": "Depto Pessoal", "name": "Adiantamento"},
+        {"area": "Depto Pessoal", "name": "Gerenciamento indicadores READ"},
+        {"area": "Depto Pessoal", "name": "Folha de Pagamento"},
+        {"area": "Depto Pessoal", "name": "Rescisão"},
+        {"area": "Depto Pessoal", "name": "Benefícios previdenciários"},
+        {"area": "Depto Pessoal", "name": "Gerenciamento de Benefícios dos colaboradores"},
+        {"area": "Depto Pessoal", "name": "Férias"},
+        {"area": "Depto Pessoal", "name": "Alterações cadastrais (execução do sistema)"},
+        {"area": "Financeiro", "name": "Recebimento de pagamento liberação pedido"},
+        {"area": "Financeiro", "name": "Solicitação de link pagamento"},
+        {"area": "Financeiro", "name": "Acerto de cliente de carga"},
+        {"area": "Financeiro", "name": "Envio de NF"},
+        {"area": "Financeiro", "name": "Envio de boleto"},
+        {"area": "Financeiro", "name": "Envio de relatório contas a receber"},
+        {"area": "Financeiro", "name": "Envio de relatório de pedido liberados"},
+        {"area": "Financeiro", "name": "Envio de relatório de vales gerados e liberados"},
+        {"area": "Financeiro", "name": "Envio de relatório de contratos"},
+        {"area": "Financeiro", "name": "Conciliação das notas faturadas em contrato"},
+        {"area": "Financeiro", "name": "Análise de cadastro clientes (novos cadastros e limite de cadastros ativos)"},
+        {"area": "Financeiro", "name": "Atendimento Balcão"},
+        {"area": "Financeiro", "name": "Faturamento de pedidos clientes balcão"},
+        {"area": "Financeiro", "name": "Bloqueio e desbloqueio de cadastro"},
+        {"area": "Financeiro", "name": "Envio de deposito para Banco"},
+        {"area": "Financeiro", "name": "Conciliação de cartão de crédito (vendas realizadas e recebimentos)"},
+        {"area": "Financeiro", "name": "Conciliação de recebimento"},
+        {"area": "Financeiro", "name": "Atendimento a representantes e filiais para análise de limite de crédito e novos cadastros"},
+        {"area": "Financeiro", "name": "Acompanhamento de cobrança"},
+        {"area": "Financeiro", "name": "Controle dos clientes \"BO de entrega\" e canhoto com seguro de crédito"},
+        {"area": "Financeiro", "name": "Envio Mensal do relatório de contas a receber para Maurício"},
+        {"area": "Financeiro", "name": "Conferência e arquivamento dos comprovantes de recebimento"},
+        {"area": "Financeiro", "name": "Cancelamento dos pedidos VENCIDOS no sistema"}
+    ];
+
+    list.forEach((item, index) => {
+        customProcesses.push({
+            id: Date.now() + index,
+            name: item.name,
+            area: item.area,
+            date: '', // Processos novos vêm sem data até serem iniciados
+            interviewTime: 0,
+            drawTime: 0,
+            executionTime: 0,
+            status: 'todo'
+        });
+    });
+
+    // Cria os setores com base nos processos da lista e já soma as metas corretamente
+    const sectorCounts = {};
+    list.forEach(p => {
+        if (!sectorCounts[p.area]) sectorCounts[p.area] = 0;
+        sectorCounts[p.area]++;
+    });
+
+    Object.keys(sectorCounts).forEach((secName, index) => {
+        customSectors.push({
+            id: Date.now() + 1000 + index,
+            name: secName,
+            total: sectorCounts[secName],
+            legacyMapped: 0 // Zera o mapeamento legado, pois agora tudo vem da nova lista
+        });
+    });
+
+    saveToLocalStorage();
+    alert('Histórico zerado! 86 processos importados e metas dos setores ajustadas com sucesso.');
+    location.reload();
+}
+
+</script>
+</body>
+</html>
