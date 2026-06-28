@@ -698,7 +698,8 @@ body {
                                     <th>Processo Mapeado</th>
                                     <th>Área</th>
                                     <th>Tempo de Execução do Processo</th>
-                                    <th>Data do Mapeamento</th>
+                                    <th>Data Entrevista</th>
+                                    <th>Data Desenho</th>
                                     <th>Tempo Entrevista</th>
                                     <th>Tempo Construção</th>
                                     <th>Tempo Total</th>
@@ -735,9 +736,15 @@ body {
                         <!-- Gerado via JS -->
                     </select>
                 </div>
-                <div class="form-group">
-                    <label for="procDate">Data do Levantamento</label>
-                    <input type="date" id="procDate">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="procInterviewDate">Data da Entrevista</label>
+                        <input type="date" id="procInterviewDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="procDrawDate">Data do Desenho</label>
+                        <input type="date" id="procDrawDate">
+                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -1300,19 +1307,27 @@ function renderTimeSpentDayChart() {
     const groupedByDate = {};
     
     customProcesses.forEach(p => {
-        if (!p.date) return; // Ignora cards que estão sem data
-        
-        // Formatar data (YYYY-MM-DD) para (DD/MM/YYYY) para exibição amigável
-        const parts = p.date.split('-');
-        if (parts.length !== 3) return;
-        const [year, month, day] = parts;
-        const dateStr = `${day}/${month}/${year}`;
-
-        if (!groupedByDate[dateStr]) {
-            groupedByDate[dateStr] = { interview: 0, draw: 0 };
+        const intDate = p.interviewDate || p.date;
+        if (intDate && p.interviewTime) {
+            const parts = intDate.split('-');
+            if (parts.length === 3) {
+                const [year, month, day] = parts;
+                const dateStr = `${day}/${month}/${year}`;
+                if (!groupedByDate[dateStr]) groupedByDate[dateStr] = { interview: 0, draw: 0 };
+                groupedByDate[dateStr].interview += p.interviewTime;
+            }
         }
-        groupedByDate[dateStr].interview += (p.interviewTime || 0);
-        groupedByDate[dateStr].draw += (p.drawTime || 0);
+        
+        const drwDate = p.drawDate || p.date;
+        if (drwDate && p.drawTime) {
+            const parts = drwDate.split('-');
+            if (parts.length === 3) {
+                const [year, month, day] = parts;
+                const dateStr = `${day}/${month}/${year}`;
+                if (!groupedByDate[dateStr]) groupedByDate[dateStr] = { interview: 0, draw: 0 };
+                groupedByDate[dateStr].draw += p.drawTime;
+            }
+        }
     });
 
     // Ordenar datas
@@ -1404,7 +1419,8 @@ function saveProcess(e) {
     const idField = document.getElementById('procId').value;
     const name = document.getElementById('procName').value;
     const area = document.getElementById('procArea').value;
-    const date = document.getElementById('procDate').value;
+    const interviewDate = document.getElementById('procInterviewDate').value;
+    const drawDate = document.getElementById('procDrawDate').value;
     const interviewTime = parseInt(document.getElementById('procTimeInterview').value);
     const drawTime = parseInt(document.getElementById('procTimeDraw').value);
     const executionTime = parseInt(document.getElementById('procTimeExecution').value) || 0;
@@ -1415,7 +1431,8 @@ function saveProcess(e) {
         if (process) {
             process.name = name;
             process.area = area;
-            process.date = date;
+            process.interviewDate = interviewDate;
+            process.drawDate = drawDate;
             process.interviewTime = interviewTime;
             process.drawTime = drawTime;
             process.executionTime = executionTime;
@@ -1426,7 +1443,8 @@ function saveProcess(e) {
             id: Date.now(),
             name,
             area,
-            date,
+            interviewDate,
+            drawDate,
             interviewTime,
             drawTime,
             executionTime,
@@ -1551,9 +1569,15 @@ function renderKanban() {
                 </div>
             </div>
             <span style="display:inline-block; font-size: 0.75rem; background: rgba(99, 102, 241, 0.2); color: #818cf8; padding: 2px 8px; border-radius: 12px; margin-bottom: 0.8rem; border: 1px solid rgba(99, 102, 241, 0.3);">${p.area || 'Sem Área'}</span>
-            <div style="font-size: 0.8rem; color: var(--text-secondary); display:flex; justify-content: space-between;">
-                <span><i class="far fa-calendar"></i> ${p.date ? p.date.split('-').reverse().join('/') : '--/--/----'}</span>
-                <span><i class="far fa-clock"></i> ${timeStr}</span>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); display:flex; flex-direction:column; gap:0.3rem;">
+                <div style="display:flex; justify-content: space-between;">
+                    <span title="Data da Entrevista"><i class="fas fa-microphone"></i> ${p.interviewDate || p.date ? (p.interviewDate || p.date).split('-').reverse().join('/') : '--/--/----'}</span>
+                    <span><i class="far fa-clock"></i> Ent: ${formatMinutes(p.interviewTime || 0)}</span>
+                </div>
+                <div style="display:flex; justify-content: space-between;">
+                    <span title="Data do Desenho"><i class="fas fa-pen-ruler"></i> ${p.drawDate || p.date ? (p.drawDate || p.date).split('-').reverse().join('/') : '--/--/----'}</span>
+                    <span><i class="far fa-clock"></i> Des: ${formatMinutes(p.drawTime || 0)}</span>
+                </div>
             </div>
         `;
         
@@ -1610,7 +1634,8 @@ function renderReports() {
             <td>${p.name}</td>
             <td>${p.area || '-'}</td>
             <td style="color: var(--orange); font-weight: 500;">${p.executionTime ? formatMinutes(p.executionTime) : 'Não Inf.'}</td>
-            <td>${p.date ? p.date.split('-').reverse().join('/') : '-'}</td>
+            <td>${p.interviewDate || p.date ? (p.interviewDate || p.date).split('-').reverse().join('/') : '-'}</td>
+            <td>${p.drawDate || p.date ? (p.drawDate || p.date).split('-').reverse().join('/') : '-'}</td>
             <td>${p.interviewTime ? formatMinutes(p.interviewTime) : '0'}</td>
             <td>${p.drawTime ? formatMinutes(p.drawTime) : '0'}</td>
             <td style="font-weight: 600; color: var(--green);">${formatMinutes(totalTime)}</td>
@@ -1662,7 +1687,8 @@ function exportToExcel() {
     const data = customProcesses.map(p => ({
         'Processo Mapeado': p.name,
         'Área': p.area || 'Não Definida',
-        'Data do Mapeamento': p.date ? p.date.split('-').reverse().join('/') : 'Não Definida',
+        'Data Entrevista': p.interviewDate || p.date ? (p.interviewDate || p.date).split('-').reverse().join('/') : 'Não Definida',
+        'Data Desenho': p.drawDate || p.date ? (p.drawDate || p.date).split('-').reverse().join('/') : 'Não Definida',
         'Tempo Entrevista (min)': p.interviewTime || 0,
         'Tempo Construção Fluxo (min)': p.drawTime || 0,
         'Tempo Total de Mapeamento (min)': (p.interviewTime || 0) + (p.drawTime || 0),
@@ -1814,7 +1840,14 @@ function editProcessItem(id) {
     }
     
     areaSelect.value = process.area || '';
-    document.getElementById('procDate').value = process.date;
+    
+    // Fallback: se o processo for antigo e tiver apenas .date, joga para as duas novas
+    const intDate = process.interviewDate || process.date || '';
+    const drwDate = process.drawDate || process.date || '';
+    
+    document.getElementById('procInterviewDate').value = intDate;
+    document.getElementById('procDrawDate').value = drwDate;
+    
     document.getElementById('procTimeInterview').value = process.interviewTime || 0;
     document.getElementById('procTimeDraw').value = process.drawTime || 0;
     document.getElementById('procTimeExecution').value = process.executionTime || 0;
