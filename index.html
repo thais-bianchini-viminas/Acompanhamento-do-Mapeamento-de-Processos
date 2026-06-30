@@ -1068,7 +1068,7 @@ function calculateKPIs() {
 
     const progressPercentage = totalProcesses === 0 ? 0 : Math.round((totalMapped / totalProcesses) * 100);
 
-    const today = new Date('2026-06-26T12:00:00'); // Contexto atual
+    const today = new Date();
     const timeDiff = Math.abs(today.getTime() - baseData.startDate.getTime());
     const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
 
