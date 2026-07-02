@@ -22,7 +22,6 @@
     .readonly-mode .edit-btn,
     .readonly-mode #nav-export,
     .readonly-mode #nav-import,
-    .readonly-mode button[onclick^="deleteProcessItem"],
     .readonly-mode button[onclick^="editProcessItem"] {
         display: none !important;
     }
@@ -30,6 +29,12 @@
     .readonly-mode .kanban-column {
         min-height: auto;
     }
+
+    .col-filter {
+        font-size: 0.75rem; padding: 4px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: inherit; width: 100%; outline: none; font-weight: normal; font-family: inherit; margin-top: 5px;
+    }
+    .col-filter:focus { border-color: rgba(99, 102, 241, 0.8); }
+    .col-filter option { background: #0f172a; }
 
 /* Variáveis Globais de Cores e Estilo (Dark Mode & Glassmorphism) */
 :root {
@@ -695,15 +700,15 @@ body {
                         <table class="data-table" id="reportTable">
                             <thead>
                                 <tr>
-                                    <th>Processo Mapeado</th>
-                                    <th>Área</th>
-                                    <th>Tempo de Execução do Processo</th>
-                                    <th>Data Entrevista</th>
-                                    <th>Data Desenho</th>
-                                    <th>Tempo Entrevista</th>
-                                    <th>Tempo Construção</th>
-                                    <th>Tempo Total</th>
-                                    <th>Ações</th>
+                                    <th><div style="display:flex; flex-direction:column;"><span onclick="setSort('fName')" style="cursor:pointer;" title="Ordenar">Processo Mapeado ⇅</span> <select id="fName" onchange="renderReports()" class="col-filter"><option value="all">Todas</option></select></div></th>
+                                    <th><div style="display:flex; flex-direction:column;"><span onclick="setSort('fArea')" style="cursor:pointer;" title="Ordenar">Área ⇅</span> <select id="reportFilterArea" onchange="renderReports()" class="col-filter"><option value="all">Todas</option></select></div></th>
+                                    <th><div style="display:flex; flex-direction:column;"><span onclick="setSort('fExec')" style="cursor:pointer;" title="Ordenar">Tempo Execução ⇅</span> <select id="fExec" onchange="renderReports()" class="col-filter"><option value="all">Todas</option></select></div></th>
+                                    <th><div style="display:flex; flex-direction:column;"><span onclick="setSort('fDateInt')" style="cursor:pointer;" title="Ordenar">Data Entrevista ⇅</span> <select id="fDateInt" onchange="renderReports()" class="col-filter"><option value="all">Todas</option></select></div></th>
+                                    <th><div style="display:flex; flex-direction:column;"><span onclick="setSort('fDateDraw')" style="cursor:pointer;" title="Ordenar">Data Desenho ⇅</span> <select id="fDateDraw" onchange="renderReports()" class="col-filter"><option value="all">Todas</option></select></div></th>
+                                    <th><div style="display:flex; flex-direction:column;"><span onclick="setSort('fTimeInt')" style="cursor:pointer;" title="Ordenar">Tempo Entrevista ⇅</span> <select id="fTimeInt" onchange="renderReports()" class="col-filter"><option value="all">Todas</option></select></div></th>
+                                    <th><div style="display:flex; flex-direction:column;"><span onclick="setSort('fTimeDraw')" style="cursor:pointer;" title="Ordenar">Tempo Construção ⇅</span> <select id="fTimeDraw" onchange="renderReports()" class="col-filter"><option value="all">Todas</option></select></div></th>
+                                    <th><div style="display:flex; flex-direction:column;"><span onclick="setSort('fTimeTotal')" style="cursor:pointer;" title="Ordenar">Tempo Total ⇅</span> <select id="fTimeTotal" onchange="renderReports()" class="col-filter"><option value="all">Todas</option></select></div></th>
+                                    <th style="vertical-align: bottom;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="report-table-body">
@@ -749,11 +754,11 @@ body {
                 <div class="form-row">
                     <div class="form-group">
                         <label for="procTimeInterview">Tempo de Entrevista (min)</label>
-                        <input type="number" id="procTimeInterview" placeholder="Ex: 20" min="0" required>
+                        <input type="number" id="procTimeInterview" placeholder="Ex: 20" min="0">
                     </div>
                     <div class="form-group">
                         <label for="procTimeDraw">Tempo Construindo Fluxo (min)</label>
-                        <input type="number" id="procTimeDraw" placeholder="Ex: 35" min="0" required>
+                        <input type="number" id="procTimeDraw" placeholder="Ex: 35" min="0">
                     </div>
                 </div>
                 <div class="form-group" style="margin-top: 1rem;">
@@ -1421,8 +1426,8 @@ function saveProcess(e) {
     const area = document.getElementById('procArea').value;
     const interviewDate = document.getElementById('procInterviewDate').value;
     const drawDate = document.getElementById('procDrawDate').value;
-    const interviewTime = parseInt(document.getElementById('procTimeInterview').value);
-    const drawTime = parseInt(document.getElementById('procTimeDraw').value);
+    const interviewTime = parseInt(document.getElementById('procTimeInterview').value) || 0;
+    const drawTime = parseInt(document.getElementById('procTimeDraw').value) || 0;
     const executionTime = parseInt(document.getElementById('procTimeExecution').value) || 0;
 
     if (idField) {
@@ -1448,7 +1453,7 @@ function saveProcess(e) {
             interviewTime,
             drawTime,
             executionTime,
-            status: 'done' // Processos criados no dashboard vão direto para concluído
+            status: 'todo' // Processos criados no dashboard vão para A Fazer
         };
         customProcesses.push(newProcess);
     }
@@ -1623,11 +1628,101 @@ function drop(ev) {
 // === Relatórios Lógica ===
 let reportDetailedChartInstance = null;
 
+let currentSortColumn = null;
+let currentSortDirection = 'asc';
+
+function setSort(col) {
+    if (currentSortColumn === col) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortColumn = col;
+        currentSortDirection = 'asc';
+    }
+    renderReports();
+}
+
 function renderReports() {
     const tbody = document.getElementById('report-table-body');
     tbody.innerHTML = '';
     
-    customProcesses.forEach(p => {
+    // Função auxiliar para popular os selects dinamicamente
+    const populateSelect = (selectId, extractFn) => {
+        const select = document.getElementById(selectId);
+        if (!select) return 'all';
+        const currentVal = select.value;
+        const uniqueVals = [...new Set(customProcesses.map(extractFn).filter(v => v !== undefined && v !== null && v !== ''))].sort();
+        select.innerHTML = '<option value="all">Todas</option>';
+        uniqueVals.forEach(v => {
+            select.innerHTML += `<option value="${v}">${v}</option>`;
+        });
+        if (Array.from(select.options).some(o => o.value === currentVal)) {
+            select.value = currentVal;
+        } else {
+            select.value = 'all';
+        }
+        return select.value;
+    };
+
+    // Populando os filtros
+    const selectedFilter = populateSelect('reportFilterArea', p => p.area);
+    const fName = populateSelect('fName', p => p.name);
+    const fExec = populateSelect('fExec', p => p.executionTime ? formatMinutes(p.executionTime) : 'Não Inf.');
+    const fDateInt = populateSelect('fDateInt', p => p.interviewDate || p.date ? (p.interviewDate || p.date).split('-').reverse().join('/') : '-');
+    const fDateDraw = populateSelect('fDateDraw', p => p.drawDate || p.date ? (p.drawDate || p.date).split('-').reverse().join('/') : '-');
+    const fTimeInt = populateSelect('fTimeInt', p => p.interviewTime ? formatMinutes(p.interviewTime) : '0');
+    const fTimeDraw = populateSelect('fTimeDraw', p => p.drawTime ? formatMinutes(p.drawTime) : '0');
+    const fTimeTotal = populateSelect('fTimeTotal', p => formatMinutes((p.interviewTime || 0) + (p.drawTime || 0)));
+
+    // Filtrar
+    let filteredProcesses = customProcesses.filter(p => {
+        if (selectedFilter !== 'all' && p.area !== selectedFilter) return false;
+        if (fName !== 'all' && p.name !== fName) return false;
+        if (fExec !== 'all' && (p.executionTime ? formatMinutes(p.executionTime) : 'Não Inf.') !== fExec) return false;
+        
+        const dInt = p.interviewDate || p.date ? (p.interviewDate || p.date).split('-').reverse().join('/') : '-';
+        if (fDateInt !== 'all' && dInt !== fDateInt) return false;
+        
+        const dDrw = p.drawDate || p.date ? (p.drawDate || p.date).split('-').reverse().join('/') : '-';
+        if (fDateDraw !== 'all' && dDrw !== fDateDraw) return false;
+        
+        const tInt = p.interviewTime ? formatMinutes(p.interviewTime) : '0';
+        if (fTimeInt !== 'all' && tInt !== fTimeInt) return false;
+
+        const tDrw = p.drawTime ? formatMinutes(p.drawTime) : '0';
+        if (fTimeDraw !== 'all' && tDrw !== fTimeDraw) return false;
+        
+        const total = (p.interviewTime || 0) + (p.drawTime || 0);
+        if (fTimeTotal !== 'all' && formatMinutes(total) !== fTimeTotal) return false;
+
+        return true;
+    });
+    
+    // Ordenar: status 'done' (Concluído) primeiro, DEPOIS ordenação customizada
+    filteredProcesses.sort((a, b) => {
+        if ((a.status === 'done' && b.status === 'done') || (a.status !== 'done' && b.status !== 'done')) {
+            if (!currentSortColumn) return 0;
+            
+            let valA, valB;
+            if (currentSortColumn === 'fName') { valA = a.name.toLowerCase(); valB = b.name.toLowerCase(); }
+            else if (currentSortColumn === 'fArea') { valA = a.area || ''; valB = b.area || ''; }
+            else if (currentSortColumn === 'fExec') { valA = a.executionTime || 0; valB = b.executionTime || 0; }
+            else if (currentSortColumn === 'fDateInt') { valA = a.interviewDate || a.date || ''; valB = b.interviewDate || b.date || ''; }
+            else if (currentSortColumn === 'fDateDraw') { valA = a.drawDate || a.date || ''; valB = b.drawDate || b.date || ''; }
+            else if (currentSortColumn === 'fTimeInt') { valA = a.interviewTime || 0; valB = b.interviewTime || 0; }
+            else if (currentSortColumn === 'fTimeDraw') { valA = a.drawTime || 0; valB = b.drawTime || 0; }
+            else if (currentSortColumn === 'fTimeTotal') { valA = (a.interviewTime || 0) + (a.drawTime || 0); valB = (b.interviewTime || 0) + (b.drawTime || 0); }
+
+            if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+            return 0;
+        }
+
+        if (a.status === 'done' && b.status !== 'done') return -1;
+        if (a.status !== 'done' && b.status === 'done') return 1;
+        return 0;
+    });
+
+    filteredProcesses.forEach(p => {
         const tr = document.createElement('tr');
         const totalTime = (p.interviewTime || 0) + (p.drawTime || 0);
         tr.innerHTML = `
