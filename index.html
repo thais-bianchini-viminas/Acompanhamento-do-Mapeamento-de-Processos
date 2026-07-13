@@ -573,6 +573,19 @@ body {
                     </div>
                 </section>
 
+                <section class="charts-section" style="grid-template-columns: 1fr; margin-bottom: 2rem;">
+                    <div class="chart-container glass-panel">
+                        <div class="chart-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <h3>Evolução Mensal (Processos Mapeados vs Concluídos)</h3>
+                            <div id="evolutionSummaryBadge">
+                            </div>
+                        </div>
+                        <div class="chart-body" style="height: 300px;">
+                            <canvas id="evolutionChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
                 <section class="charts-section">
                     <div class="chart-container glass-panel">
                         <div class="chart-header">
@@ -856,6 +869,7 @@ let customSectors = [];
 let sectorChartInstance = null;
 let timeSpentProcessChartInstance = null;
 let timeSpentDayChartInstance = null;
+let evolutionChartInstance = null;
 
 // Inicialização da Aplicação
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1055,6 +1069,7 @@ function updateDashboard() {
     
     // Gráficos Chart.js
     renderSectorChart();
+    renderEvolutionChart();
     renderTimeSpentProcessChart();
     renderTimeSpentDayChart();
 }
@@ -1218,6 +1233,160 @@ function renderSectorChart() {
             },
             plugins: {
                 legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+// 1.5 Gráfico de Evolução Mês a Mês
+function renderEvolutionChart() {
+    const ctx = document.getElementById('evolutionChart').getContext('2d');
+    
+    // Agrupar por mes
+    const monthlyData = {};
+    
+    customProcesses.forEach(p => {
+        let dateStr = p.date || p.interviewDate || p.drawDate;
+        if (!dateStr) return; // ignora se não tem data
+        
+        // Pega YYYY-MM
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return;
+        
+        const monthYear = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        
+        if (!monthlyData[monthYear]) {
+            monthlyData[monthYear] = { mapped: 0, done: 0 };
+        }
+        
+        monthlyData[monthYear].mapped += 1;
+        if (p.status === 'done') {
+            monthlyData[monthYear].done += 1;
+        }
+    });
+    
+    // Sort keys (YYYY-MM sort is correctly chronological)
+    const sortedKeys = Object.keys(monthlyData).sort();
+    
+    const labels = sortedKeys.map(k => {
+        const parts = k.split('-');
+        return parts[1] + '/' + parts[0];
+    });
+    
+    const dataMapped = sortedKeys.map(k => monthlyData[k].mapped);
+    const dataDone = sortedKeys.map(k => monthlyData[k].done);
+
+    const badgeEl = document.getElementById('evolutionSummaryBadge');
+    if (badgeEl) {
+        let tableHTML = `
+        <table style="border-collapse: collapse; text-align: center; font-size: 0.85rem; color: var(--text-primary); background: rgba(255,255,255,0.03); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
+            <thead>
+                <tr style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <th style="padding: 6px 12px; font-weight: bold; color: var(--text-secondary);">Mês</th>
+                    <th style="padding: 6px 12px; font-weight: bold; color: var(--text-secondary);">Mapeados</th>
+                    <th style="padding: 6px 12px; font-weight: bold; color: var(--text-secondary);">Concluídos</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        sortedKeys.forEach((k, index) => {
+            const parts = k.split('-');
+            const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+            const monthName = monthNames[parseInt(parts[1]) - 1];
+            tableHTML += `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 4px 12px;">${monthName}</td>
+                    <td style="padding: 4px 12px;">${dataMapped[index]}</td>
+                    <td style="padding: 4px 12px;">${dataDone[index]}</td>
+                </tr>
+            `;
+        });
+        tableHTML += `</tbody></table>`;
+        badgeEl.innerHTML = tableHTML;
+    }
+
+    const evolutionDatalabels = {
+        id: 'evolutionDatalabels',
+        afterDatasetsDraw(chart, args, pluginOptions) {
+            const { ctx, data } = chart;
+            ctx.save();
+            ctx.font = 'bold 13px "Inter", sans-serif';
+            ctx.textAlign = 'center';
+            
+            chart.data.datasets.forEach((dataset, datasetIndex) => {
+                const meta = chart.getDatasetMeta(datasetIndex);
+                if(meta.hidden) return;
+                
+                if (datasetIndex === 0) {
+                    // Barra (Mapeados): Branco para destacar dentro da barra azul
+                    ctx.fillStyle = '#ffffff'; 
+                    ctx.textBaseline = 'top';
+                } else {
+                    // Linha (Concluídos): Verde
+                    ctx.fillStyle = '#34d399'; 
+                    ctx.textBaseline = 'bottom';
+                }
+                
+                meta.data.forEach((datapoint, index) => {
+                    const value = dataset.data[index];
+                    if (value > 0) {
+                        if (datasetIndex === 0) {
+                            // Barra (Mapeados): Dentro da barra, no topo
+                            ctx.fillText(value, datapoint.x, datapoint.y + 10);
+                        } else {
+                            // Linha (Concluídos): Acima da bolinha
+                            ctx.fillText(value, datapoint.x, datapoint.y - 10);
+                        }
+                    }
+                });
+            });
+            ctx.restore();
+        }
+    };
+
+    if (evolutionChartInstance) evolutionChartInstance.destroy();
+
+    evolutionChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Mapeados',
+                    data: dataMapped,
+                    backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                    borderRadius: 4
+                },
+                {
+                    type: 'line',
+                    label: 'Concluídos',
+                    data: dataDone,
+                    borderColor: colors.green,
+                    backgroundColor: colors.green,
+                    borderWidth: 3,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointBackgroundColor: colors.green,
+                    pointHoverRadius: 8,
+                    fill: false
+                }
+            ]
+        },
+        plugins: [evolutionDatalabels],
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: colors.grid } },
+                x: { grid: { color: colors.grid } }
             }
         }
     });
