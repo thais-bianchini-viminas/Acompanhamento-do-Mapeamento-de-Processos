@@ -52,6 +52,34 @@
     --purple: #8b5cf6;
     --orange: #f59e0b;
     --red: #ef4444;
+}
+
+body.light-mode {
+    --bg-color: #f1f5f9; /* Slate 100 */
+    --panel-bg: #ffffff; /* White */
+    --panel-border: #cbd5e1; /* Slate 300 */
+    --text-primary: #1e293b; /* Slate 800 */
+    --text-secondary: #475569; /* Slate 600 */
+}
+body.light-mode .glass-panel {
+    background: var(--panel-bg);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid var(--panel-border);
+}
+body.light-mode .kanban-column {
+    background: #e2e8f0; /* Fundo mais claro para colunas */
+}
+body.light-mode .nav-item.active {
+    background: rgba(0,0,0,0.05);
+}
+body.light-mode table th {
+    background: rgba(0,0,0,0.05);
+}
+body.light-mode #evolutionSummaryBadge table,
+body.light-mode #statusSummaryBadge {
+    background: #f8fafc !important;
+    color: var(--text-primary) !important;
+}
 
     --font-family: 'Inter', sans-serif;
     --border-radius: 16px;
@@ -455,7 +483,8 @@ body {
                 <a href="#" class="nav-item active" onclick="switchView('dashboard')" id="nav-dashboard"><i class="fa-solid fa-house"></i> Dashboard</a>
                 <a href="#" class="nav-item" onclick="switchView('kanban')" id="nav-kanban"><i class="fa-solid fa-list-check"></i> Tarefas Kanban</a>
                 <a href="#" class="nav-item" onclick="switchView('reports')" id="nav-reports"><i class="fa-solid fa-chart-pie"></i> Relatórios</a>
-                <a href="#" class="nav-item" onclick="syncToCloud()" id="nav-export" style="color: var(--green); margin-top: auto; border-color: var(--green);"><i class="fa-solid fa-cloud-arrow-up"></i> Atualizar Painel Online</a>
+                <a href="#" class="nav-item" onclick="toggleTheme()" id="nav-theme" style="margin-top: auto; color: var(--orange); border-color: var(--orange);"><i class="fa-solid fa-moon" id="theme-icon"></i> Tema Visual</a>
+                <a href="#" class="nav-item" onclick="syncToCloud()" id="nav-export" style="color: var(--green); margin-top: 10px; border-color: var(--green);"><i class="fa-solid fa-cloud-arrow-up"></i> Atualizar Painel Online</a>
             </nav>
             <div class="sidebar-footer">
                 <div class="user-info">
@@ -489,6 +518,16 @@ body {
 
                 <section class="kpi-grid">
                     <div class="kpi-card glass-panel">
+                        <div class="kpi-icon purple"><i class="fa-solid fa-spinner"></i></div>
+                        <div class="kpi-data">
+                            <h3>Progresso</h3>
+                            <p class="kpi-value" id="kpi-progress">0%</p>
+                        </div>
+                        <div class="progress-bar-container mini">
+                            <div class="progress-bar purple-bg" id="kpi-progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass-panel">
                         <div class="kpi-icon blue"><i class="fa-solid fa-layer-group"></i></div>
                         <div class="kpi-data">
                             <h3>Total de Processos</h3>
@@ -500,16 +539,6 @@ body {
                         <div class="kpi-data">
                             <h3>Processos Mapeados</h3>
                             <p class="kpi-value" id="kpi-mapped">0</p>
-                        </div>
-                    </div>
-                    <div class="kpi-card glass-panel">
-                        <div class="kpi-icon purple"><i class="fa-solid fa-spinner"></i></div>
-                        <div class="kpi-data">
-                            <h3>Progresso Global</h3>
-                            <p class="kpi-value" id="kpi-progress">0%</p>
-                        </div>
-                        <div class="progress-bar-container mini">
-                            <div class="progress-bar purple-bg" id="kpi-progress-bar" style="width: 0%"></div>
                         </div>
                     </div>
                     <div class="kpi-card glass-panel">
@@ -563,12 +592,23 @@ body {
                     </div>
                 </section>
 
-                <section class="charts-section" style="grid-template-columns: 1fr;">
+                <section class="charts-section" style="grid-template-columns: 1fr 2fr;">
                     <div class="chart-container glass-panel" style="padding-bottom: 0;">
                         <div class="chart-header">
                             <h3>Progresso por Área (Visão Macro)</h3>
                         </div>
                         <div class="chart-body battery-list" id="battery-chart-container" style="min-height: auto; padding-bottom: 1.5rem;">
+                        </div>
+                    </div>
+
+                    <div class="chart-container glass-panel">
+                        <div class="chart-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <h3>Status</h3>
+                            <div id="statusSummaryBadge" style="background: transparent; border: 1px solid var(--border-color); padding: 5px 10px; font-weight: bold; color: var(--text-primary); font-size: 0.9rem; text-align: left; line-height: 1.4;">
+                            </div>
+                        </div>
+                        <div class="chart-body" style="height: 300px;">
+                            <canvas id="statusChart"></canvas>
                         </div>
                     </div>
                 </section>
@@ -867,6 +907,7 @@ const colors = {
 let customProcesses = [];
 let customSectors = [];
 let sectorChartInstance = null;
+let statusChartInstance = null;
 let timeSpentProcessChartInstance = null;
 let timeSpentDayChartInstance = null;
 let evolutionChartInstance = null;
@@ -1068,6 +1109,7 @@ function updateDashboard() {
     renderDepartmentList();
     
     // Gráficos Chart.js
+    renderStatusChart();
     renderSectorChart();
     renderEvolutionChart();
     renderTimeSpentProcessChart();
@@ -1077,16 +1119,21 @@ function updateDashboard() {
 function calculateKPIs() {
     let totalProcesses = customProcesses.length; // Conta independente da etapa
     let totalMapped = 0;
+    let totalDone = 0;
 
     customSectors.forEach(dept => {
-        // Mapeados via formulário para esta área (somente os concluídos)
-        const addedForDept = customProcesses.filter(p => p.area === dept.name && p.status === 'done').length;
-        const currentMapped = (dept.legacyMapped || 0) + addedForDept;
-        
+        // Mapeados agora inclui desenhando, validação e concluído
+        const addedMappedForDept = customProcesses.filter(p => p.area === dept.name && (p.status === 'drawing' || p.status === 'validation' || p.status === 'done')).length;
+        const currentMapped = (dept.legacyMapped || 0) + addedMappedForDept;
         totalMapped += currentMapped;
+
+        // Para o progresso, contamos apenas os concluídos
+        const addedDoneForDept = customProcesses.filter(p => p.area === dept.name && p.status === 'done').length;
+        const currentDone = (dept.legacyMapped || 0) + addedDoneForDept;
+        totalDone += currentDone;
     });
 
-    const progressPercentage = totalProcesses === 0 ? 0 : Math.round((totalMapped / totalProcesses) * 100);
+    const progressPercentage = totalProcesses === 0 ? 0 : Math.round((totalDone / totalProcesses) * 100);
 
     const today = new Date();
     const timeDiff = Math.abs(today.getTime() - baseData.startDate.getTime());
@@ -1195,7 +1242,7 @@ function renderSectorChart() {
     
     const labels = customSectors.map(d => d.name);
     const dataMapped = customSectors.map(d => {
-        const added = customProcesses.filter(p => p.area === d.name && p.status === 'done').length;
+        const added = customProcesses.filter(p => p.area === d.name && (p.status === 'drawing' || p.status === 'validation' || p.status === 'done')).length;
         return (d.legacyMapped || 0) + added;
     });
     const dataPending = customSectors.map((d, index) => {
@@ -1229,10 +1276,81 @@ function renderSectorChart() {
             maintainAspectRatio: false,
             scales: {
                 x: { stacked: true, grid: { display: false } },
-                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' } }
+                y: { stacked: true, display: false }
             },
             plugins: {
                 legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+// Gráfico de Status
+function renderStatusChart() {
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    
+    const counts = [
+        customProcesses.filter(p => p.status === 'todo').length,
+        customProcesses.filter(p => p.status === 'done').length,
+        customProcesses.filter(p => p.status === 'validation').length,
+        customProcesses.filter(p => p.status === 'interview').length,
+        customProcesses.filter(p => p.status === 'drawing').length
+    ];
+    const labels = ['A Fazer', 'Concluído', 'Validação', 'Em entrevista', 'Desenhando'];
+
+    const mappedCount = counts[1] + counts[2] + counts[4]; // done + validation + drawing
+    const totalCount = customProcesses.length;
+    const mappedPerc = totalCount > 0 ? Math.round((mappedCount / totalCount) * 100) : 0;
+
+    const badgeEl = document.getElementById('statusSummaryBadge');
+    if (badgeEl) {
+        badgeEl.innerHTML = `Total: ${totalCount}<br>Mapeados: ${mappedPerc}%`;
+    }
+
+    if (statusChartInstance) statusChartInstance.destroy();
+
+    const statusDatalabels = {
+        id: 'statusDatalabels',
+        afterDatasetsDraw(chart, args, pluginOptions) {
+            const { ctx } = chart;
+            ctx.save();
+            ctx.font = 'bold 13px "Inter", sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            
+            const meta = chart.getDatasetMeta(0);
+            meta.data.forEach((bar, index) => {
+                const value = chart.data.datasets[0].data[index];
+                if (value > 0) {
+                    ctx.fillText(value, bar.x, bar.y - 5);
+                }
+            });
+            ctx.restore();
+        }
+    };
+
+    statusChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Processos',
+                data: counts,
+                backgroundColor: colors.blue,
+                borderRadius: 4
+            }]
+        },
+        plugins: [statusDatalabels],
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { display: false, beginAtZero: true },
+                x: { grid: { display: false } }
             }
         }
     });
@@ -1259,7 +1377,9 @@ function renderEvolutionChart() {
             monthlyData[monthYear] = { mapped: 0, done: 0 };
         }
         
-        monthlyData[monthYear].mapped += 1;
+        if (p.status === 'drawing' || p.status === 'validation' || p.status === 'done') {
+            monthlyData[monthYear].mapped += 1;
+        }
         if (p.status === 'done') {
             monthlyData[monthYear].done += 1;
         }
@@ -2280,6 +2400,35 @@ function importViminasData() {
     saveToLocalStorage();
     alert('Histórico zerado! 86 processos importados e metas dos setores ajustadas com sucesso.');
     location.reload();
+}
+
+// === Tema Claro / Escuro ===
+function toggleTheme() {
+    const isLight = document.body.classList.toggle('light-mode');
+    const themeIcon = document.getElementById('theme-icon');
+    if (isLight) {
+        themeIcon.classList.remove('fa-moon');
+        themeIcon.classList.add('fa-sun');
+        localStorage.setItem('dashboardTheme', 'light');
+        Chart.defaults.color = '#475569';
+    } else {
+        themeIcon.classList.remove('fa-sun');
+        themeIcon.classList.add('fa-moon');
+        localStorage.setItem('dashboardTheme', 'dark');
+        Chart.defaults.color = '#94a3b8';
+    }
+    // Atualiza gráficos para refletir novas cores de fonte e grid
+    if (document.getElementById('dashboard-view').style.display !== 'none') {
+        updateDashboard();
+    }
+}
+
+// Inicializa tema no carregamento
+if (localStorage.getItem('dashboardTheme') === 'light') {
+    document.body.classList.add('light-mode');
+    document.getElementById('theme-icon').classList.remove('fa-moon');
+    document.getElementById('theme-icon').classList.add('fa-sun');
+    Chart.defaults.color = '#475569';
 }
 
 </script>
