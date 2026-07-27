@@ -371,8 +371,21 @@ body {
 }
 
 .kanban-column-header h3 {
+    margin: 0;
     font-size: 1.05rem;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+}
+
+.kanban-count {
+    background: rgba(148, 163, 184, 0.2);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 8px;
+    font-weight: 500;
 }
 
 .kanban-tasks {
@@ -692,35 +705,35 @@ body {
                 <div class="kanban-board">
                     <div class="kanban-column glass-panel" data-status="todo" ondrop="drop(event)" ondragover="allowDrop(event)">
                         <div class="kanban-column-header">
-                            <h3>A Fazer</h3>
+                            <h3>A Fazer <span class="kanban-count" id="count-todo">0</span></h3>
                         </div>
                         <div class="kanban-tasks" id="kanban-todo"></div>
                     </div>
                     
                     <div class="kanban-column glass-panel" data-status="interview" ondrop="drop(event)" ondragover="allowDrop(event)">
                         <div class="kanban-column-header">
-                            <h3>Em Entrevista</h3>
+                            <h3>Em Entrevista <span class="kanban-count" id="count-interview">0</span></h3>
                         </div>
                         <div class="kanban-tasks" id="kanban-interview"></div>
                     </div>
 
                     <div class="kanban-column glass-panel" data-status="drawing" ondrop="drop(event)" ondragover="allowDrop(event)">
                         <div class="kanban-column-header">
-                            <h3>Desenhando Fluxo</h3>
+                            <h3>Desenhando Fluxo <span class="kanban-count" id="count-drawing">0</span></h3>
                         </div>
                         <div class="kanban-tasks" id="kanban-drawing"></div>
                     </div>
 
                     <div class="kanban-column glass-panel" data-status="validation" ondrop="drop(event)" ondragover="allowDrop(event)">
                         <div class="kanban-column-header">
-                            <h3>Em Validação</h3>
+                            <h3>Em Validação <span class="kanban-count" id="count-validation">0</span></h3>
                         </div>
                         <div class="kanban-tasks" id="kanban-validation"></div>
                     </div>
 
                     <div class="kanban-column glass-panel" data-status="done" ondrop="drop(event)" ondragover="allowDrop(event)">
                         <div class="kanban-column-header">
-                            <h3>Concluído</h3>
+                            <h3>Concluído <span class="kanban-count" id="count-done">0</span></h3>
                         </div>
                         <div class="kanban-tasks" id="kanban-done"></div>
                     </div>
@@ -1886,6 +1899,14 @@ function renderKanban() {
             columns['todo'].appendChild(card);
         }
     });
+
+    // Atualiza contadores
+    ['todo', 'interview', 'drawing', 'validation', 'done'].forEach(status => {
+        const countBadge = document.getElementById('count-' + status);
+        if (countBadge && columns[status]) {
+            countBadge.textContent = columns[status].children.length;
+        }
+    });
 }
 
 function allowDrop(ev) {
@@ -2130,10 +2151,54 @@ function renderSectorsList() {
                 <strong style="color: var(--text-primary);">${sector.name}</strong>
                 <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 10px;">Meta: ${sector.total} processos</span>
             </div>
-            <button onclick="deleteSector(${sector.id})" class="btn" style="padding: 4px 8px; background: transparent; color: var(--red); border: 1px solid var(--red);"><i class="fa-solid fa-trash"></i></button>
+            <div>
+                <button onclick="editSector(${sector.id})" class="btn" style="padding: 4px 8px; background: transparent; color: var(--blue); border: 1px solid var(--blue); margin-right: 5px;" title="Editar Setor"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteSector(${sector.id})" class="btn" style="padding: 4px 8px; background: transparent; color: var(--red); border: 1px solid var(--red);" title="Excluir Setor"><i class="fa-solid fa-trash"></i></button>
+            </div>
         `;
         container.appendChild(div);
     });
+}
+
+function editSector(id) {
+    const sector = customSectors.find(s => s.id === id);
+    if (!sector) return;
+    
+    const newName = prompt('Nome do setor:', sector.name);
+    if (newName === null) return;
+    
+    const newTotalStr = prompt('Meta total de processos:', sector.total);
+    if (newTotalStr === null) return;
+    
+    const newTotal = parseInt(newTotalStr);
+    if (isNaN(newTotal) || newTotal < 0) {
+        alert('Meta inválida.');
+        return;
+    }
+    
+    const oldName = sector.name;
+    const finalNewName = newName.trim();
+    
+    sector.name = finalNewName;
+    sector.total = newTotal;
+    
+    // Atualiza o nome da área nos processos que já pertenciam a este setor
+    if (oldName !== finalNewName) {
+        customProcesses.forEach(p => {
+            if (p.area === oldName) {
+                p.area = finalNewName;
+            }
+        });
+    }
+    
+    saveToLocalStorage();
+    renderSectorsList();
+    populateSectorDropdown();
+    updateDashboard();
+    
+    // Atualiza outras telas se estiverem ativas
+    if (document.getElementById('kanban-view').style.display !== 'none') renderKanban();
+    if (document.getElementById('reports-view').style.display !== 'none') renderReports();
 }
 
 function addSector(e) {
@@ -2143,7 +2208,7 @@ function addSector(e) {
     
     const newSector = {
         id: Date.now(),
-        name: nameInput.value,
+        name: nameInput.value.trim(),
         total: parseInt(totalInput.value),
         legacyMapped: 0
     };
