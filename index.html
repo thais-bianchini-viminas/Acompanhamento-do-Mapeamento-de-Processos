@@ -336,6 +336,12 @@ body:not(.readonly) .table tbody tr { cursor: pointer; }
 .tl-ref { font-size: 0.75rem; color: var(--text-3); margin-top: 0.2rem; font-style: italic; }
 .escalate-box { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.7rem 0.9rem; border-radius: 10px; background: rgba(239, 68, 68, 0.1); color: var(--danger); font-size: 0.82rem; margin: 0.75rem 0; }
 .hint { font-size: 0.72rem; color: var(--text-3); }
+.absence-form { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 0.5rem; margin-top: 0.6rem; }
+.absence-form .wide { grid-column: 1 / 3; }
+.absence-actions { display: flex; gap: 0.5rem; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.absence-row { display: grid; grid-template-columns: 1.3fr 1.5fr auto auto; gap: 0.5rem; align-items: center; padding: 0.45rem 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+.absence-row .note { display: block; font-size: 0.72rem; color: var(--text-3); }
+@media (max-width: 860px) { .absence-form { grid-template-columns: 1fr; } .absence-form .wide { grid-column: auto; } .absence-row { grid-template-columns: 1fr auto; } }
 .task-pick { max-height: 190px; overflow-y: auto; border: 1px solid var(--border-strong); border-radius: 10px; padding: 0.5rem 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.25rem; }
 .task-pick .check { align-items: flex-start; }
 .task-pick .check input { margin-top: 0.2rem; }
@@ -474,6 +480,7 @@ body:not(.readonly) .table tbody tr { cursor: pointer; }
                     <div class="chart-box h300"><canvas id="evolutionChart" aria-label="Gráfico de evolução mensal" role="img"></canvas></div>
                     <div id="evoTable"></div>
                 </div>
+                <div class="chips" id="absenceChips" style="margin-top:.9rem"></div>
             </section>
 
             <section class="panel card">
@@ -604,6 +611,22 @@ body:not(.readonly) .table tbody tr { cursor: pointer; }
             <div class="field"><label for="sTarget">Data-alvo de término (opcional)</label><input class="input" id="sTarget" type="date"></div>
         </div>
 
+        <div class="section-title">Ausências e indisponibilidade</div>
+        <p class="hint" style="margin-bottom:.6rem">Períodos em que você não pôde atuar (férias, viagens, treinamentos…) e feriados.
+            Não alteram “Dias decorridos”; são descontados do ritmo, da previsão, dos prazos de novo contato e da espera pelas áreas.</p>
+        <div id="absenceList"></div>
+        <form class="absence-form" id="absenceForm">
+            <select class="input" id="aType" aria-label="Tipo de ausência"></select>
+            <input class="input" id="aStart" type="date" required aria-label="Início" title="Início">
+            <input class="input" id="aEnd" type="date" required aria-label="Fim" title="Fim">
+            <input class="input wide" id="aNote" maxlength="200" placeholder="Observação (opcional — só você vê, não é publicada)">
+            <div class="absence-actions">
+                <label class="check" id="aHalfWrap"><input type="checkbox" id="aHalf"> Meio período</label>
+                <button type="button" class="btn ghost" id="aCancel" data-action="cancel-absence" hidden>Cancelar</button>
+                <button class="btn primary" type="submit" id="aSubmit"><i class="fa-solid fa-plus"></i> Adicionar</button>
+            </div>
+        </form>
+
         <div class="section-title">Regras de contato com as áreas</div>
         <div class="row-2">
             <div class="field"><label for="sFollow">Prazo para novo contato (dias úteis)</label><input class="input" id="sFollow" type="number" min="1" max="30"></div>
@@ -729,6 +752,7 @@ const CONFIG = {
         legacySectors: 'processSectorsData',
         settings: 'processFlowSettings',
         contacts: 'processFlowContacts',
+        absences: 'processFlowAbsences',
         theme: 'dashboardTheme',
         publishKey: 'processFlowPublishKey'
     }
@@ -782,6 +806,18 @@ const CHANNEL = { ...byId(CHANNELS), manager: ESCALATION_CHANNEL };
 const PURPOSE = byId(PURPOSES);
 const RESULT = byId(RESULTS);
 const resultTone = id => id === 'escalated' ? '--danger' : ({ wait: '--warn', response: '--ok', self: '--text-3' })[RESULT[id].kind];
+
+// ----- Ausências e indisponibilidade da analista (não alteram "Dias decorridos") -----
+// Feriado/ponte = dia não útil para todos; os demais tipos = dias em que a analista não pôde atuar.
+const ABSENCE_TYPES = [
+    { id: 'vacation', label: 'Férias',                    icon: 'fa-umbrella-beach' },
+    { id: 'travel',   label: 'Viagem a trabalho',         icon: 'fa-plane' },
+    { id: 'training', label: 'Treinamento',               icon: 'fa-graduation-cap' },
+    { id: 'priority', label: 'Outra demanda prioritária', icon: 'fa-bolt' },
+    { id: 'holiday',  label: 'Feriado/ponte',             icon: 'fa-calendar-xmark' },
+    { id: 'other',    label: 'Ausência',                  icon: 'fa-user-clock' }
+];
+const ABSENCE = byId(ABSENCE_TYPES);
 
 // Lista inicial (usada só quando o navegador ainda não tem nenhum dado)
 const SEED = {
@@ -862,6 +898,8 @@ const state = {
     processes: [],
     sectors: [],
     contacts: [],
+    absences: [],
+    editingAbsence: null,
     settings: { startDate: CONFIG.defaultStart, targetDate: '', followUpDays: 2, escalateAfter: 3 },
     readonly: false,
     publishedAt: '',
@@ -904,14 +942,64 @@ const nowDT = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours()
 const fmtDT = s => isDT(s) ? `${fmtDate(s.slice(0, 10))} ${s.slice(11)}` : '—';
 const fmtDays = ms => { const d = ms / DAY; return d < 1 ? '< 1 dia' : `${fmtNum(d)} ${d >= 2 ? 'dias' : 'dia'}`; };
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+// Soma dias úteis pulando fins de semana, feriados e dias de ausência integral da analista
 function addBusinessDays(date, n) {
     const r = new Date(date);
-    let left = n;
-    while (left > 0) {
+    let left = n, guard = 0;
+    while (left > 0 && guard++ < 800) {
         r.setDate(r.getDate() + 1);
-        if (r.getDay() !== 0 && r.getDay() !== 6) left--;
+        if (availableWeight(r) > 0) left--;
     }
     return r;
+}
+
+// ----- Calendário de disponibilidade -----
+let availCache = { version: -1, holidays: new Set(), away: new Map() };
+function availability() {
+    if (availCache.version !== dataVersion) {
+        const holidays = new Set(), away = new Map();
+        for (const a of state.absences) {
+            const end = parseYMD(a.end);
+            for (let d = parseYMD(a.start), i = 0; d && d <= end && i < 400; d = addDays(d, 1), i++) {
+                const k = ymd(d);
+                if (a.type === 'holiday') holidays.add(k);
+                else away.set(k, Math.max(away.get(k) || 0, a.half ? 0.5 : 1));
+            }
+        }
+        availCache = { version: dataVersion, holidays, away };
+    }
+    return availCache;
+}
+const isWorkday = d => d.getDay() !== 0 && d.getDay() !== 6 && !availability().holidays.has(ymd(d));
+// 1 = dia útil disponível · 0,5 = meio período ausente · 0 = fim de semana, feriado ou ausência integral
+const availableWeight = d => (isWorkday(d) ? 1 - (availability().away.get(ymd(d)) || 0) : 0);
+function countDays(from, to) {
+    let work = 0, avail = 0;
+    for (let d = new Date(from.getFullYear(), from.getMonth(), from.getDate()), i = 0; d <= to && i < 2000; d = addDays(d, 1), i++) {
+        if (isWorkday(d)) { work++; avail += availableWeight(d); }
+    }
+    return { work, avail };
+}
+// Milissegundos de [s, e] que caem em dias de ausência da analista (a espera pela área fica pausada)
+function awayMs(s, e) {
+    if (!s || !e || e <= s) return 0;
+    let ms = 0;
+    availability().away.forEach((w, k) => {
+        const d0 = parseYMD(k), d1 = addDays(d0, 1);
+        const overlap = Math.min(e, d1) - Math.max(s, d0);
+        if (overlap > 0) ms += overlap * w;
+    });
+    return ms;
+}
+const fmtRange = a => (a.start === a.end ? fmtDate(a.start) : `${fmtDate(a.start)} – ${fmtDate(a.end)}`);
+const fmtWorkdays = n => `${fmtNum(n)} ${n === 1 ? 'dia útil' : 'dias úteis'}`;
+// Dias úteis afetados por um registro (feriado: dias de semana no período; demais: dias úteis descontados)
+function absenceWorkdays(a) {
+    const s = parseYMD(a.start), e = parseYMD(a.end);
+    if (a.type !== 'holiday') { const c = countDays(s, e); return c.work - c.avail; }
+    let n = 0;
+    for (let d = new Date(s), i = 0; d <= e && i < 400; d = addDays(d, 1), i++) if (d.getDay() !== 0 && d.getDay() !== 6) n++;
+    return n;
 }
 function fmtMin(mins) {
     const m = Math.round(mins || 0);
@@ -1009,6 +1097,20 @@ function normalizeContact(raw) {
     };
 }
 
+function normalizeAbsence(raw) {
+    if (!raw || !isYMD(raw.start)) return null;
+    let start = raw.start, end = isYMD(raw.end) ? raw.end : raw.start;
+    if (end < start) [start, end] = [end, start];
+    return {
+        id: Number(raw.id) || uid(),
+        type: ABSENCE[raw.type] ? raw.type : 'other',
+        start,
+        end,
+        half: !!raw.half && raw.type !== 'holiday',
+        note: String(raw.note || '').trim().slice(0, 200)
+    };
+}
+
 // Versão anterior guardava uma cópia do contato em cada tarefa. Registros idênticos (mesmo envio)
 // viram um único contato do setor que cobre essas tarefas.
 function migrateLegacyContacts(rawProcesses, processes) {
@@ -1049,6 +1151,8 @@ function applyData(rec) {
     state.contacts = (Array.isArray(r.contacts) ? r.contacts : []).map(normalizeContact).filter(Boolean)
         .concat(migrateLegacyContacts(rawProcesses, state.processes))
         .sort((a, b) => a.at.localeCompare(b.at));
+    state.absences = (Array.isArray(r.absences) ? r.absences : []).map(normalizeAbsence).filter(Boolean)
+        .sort((a, b) => b.start.localeCompare(a.start));
     const sectors = (Array.isArray(r.customSectors) ? r.customSectors : []).map(normalizeSector).filter(s => s.name);
     state.sectors = sectors.length ? sectors : deriveSectors(state.processes);
     const s = r.settings || {};
@@ -1065,6 +1169,7 @@ function seedDefault() {
     state.processes = [];
     state.sectors = [];
     state.contacts = [];
+    state.absences = [];
     Object.entries(SEED).forEach(([area, names]) => {
         state.sectors.push({ id: uid(), name: area, total: names.length, legacyMapped: 0 });
         names.forEach(name => state.processes.push(normalizeProcess({ id: uid(), name, area, status: 'todo' })));
@@ -1106,7 +1211,7 @@ async function loadData() {
         seedDefault();
     } else {
         const sectors = store.json(K.sectors, null) || store.json(K.legacySectors, []);
-        applyData({ customProcesses: processes, customSectors: sectors, contacts: store.json(K.contacts, []), settings: store.json(K.settings, {}) });
+        applyData({ customProcesses: processes, customSectors: sectors, contacts: store.json(K.contacts, []), absences: store.json(K.absences, []), settings: store.json(K.settings, {}) });
     }
     persist();
 }
@@ -1117,7 +1222,8 @@ function persist() {
     const ok = store.set(K.processes, JSON.stringify(state.processes))
         && store.set(K.sectors, JSON.stringify(state.sectors))
         && store.set(K.settings, JSON.stringify(state.settings))
-        && store.set(K.contacts, JSON.stringify(state.contacts));
+        && store.set(K.contacts, JSON.stringify(state.contacts))
+        && store.set(K.absences, JSON.stringify(state.absences));
     if (ok) store.del(K.legacySectors);
     else toast('Não foi possível salvar no navegador. Faça um backup agora.', 'error');
 }
@@ -1126,6 +1232,7 @@ const exportPayload = () => ({
     customProcesses: state.processes,
     customSectors: state.sectors,
     contacts: state.contacts,
+    absences: state.absences,
     settings: state.settings,
     exportedAt: new Date().toISOString()
 });
@@ -1171,35 +1278,62 @@ function computeMetrics() {
     };
 }
 
+// Ritmo medido por SEMANA DISPONÍVEL (5 dias úteis em que a analista estava disponível).
+// "Dias decorridos" continua corrido; ausências e feriados só saem do denominador do ritmo e da previsão.
 function computeForecast(m) {
     const today = startOfToday();
     const start = parseYMD(state.settings.startDate) || today;
     const daysElapsed = Math.max(1, Math.floor((today - start) / DAY) + 1);
+    const span = start <= today ? countDays(start, today) : { work: 0, avail: 0 };
+    const absentDays = span.work - span.avail;
 
     const doneDates = state.processes
         .filter(p => p.status === 'done')
         .map(p => parseYMD(p.completedAt))
         .filter(Boolean);
-    const recentFrom = addDays(today, -27);
+    // Janela recente = últimos 20 dias úteis DISPONÍVEIS (≈ 4 semanas de trabalho), pulando ausências
+    let recentFrom = today, acc = 0, guard = 0;
+    while (guard++ < 400) {
+        acc += availableWeight(recentFrom);
+        if (acc >= 20 || recentFrom <= start) break;
+        recentFrom = addDays(recentFrom, -1);
+    }
+    const recentAvail = countDays(recentFrom, today).avail;
     const recent = doneDates.filter(d => d >= recentFrom && d <= today).length;
-    const overallPace = m.done / (daysElapsed / 7);
-    const useRecent = recent >= 2;
-    const pace = useRecent ? recent / 4 : overallPace;
+    const overallPace = span.avail > 0 ? m.done / (span.avail / 5) : 0;
+    const useRecent = recent >= 2 && recentAvail >= 5;
+    const pace = useRecent ? recent / (recentAvail / 5) : overallPace;
 
+    // Previsão: avança dia a dia somando só a capacidade disponível (considera ausências futuras já cadastradas)
     const remaining = Math.max(0, m.base - m.done);
-    const weeksLeft = pace > 0 ? remaining / pace : null;
-    const eta = weeksLeft != null && remaining > 0 ? addDays(today, Math.ceil(weeksLeft * 7)) : null;
+    let eta = null, weeksLeft = null, futureAbsent = 0;
+    if (pace > 0 && remaining > 0) {
+        const perDay = pace / 5;
+        let need = remaining, d = today, i = 0;
+        while (need > 1e-9 && i++ < 3000) {
+            d = addDays(d, 1);
+            const w = availableWeight(d);
+            need -= perDay * w;
+            if (isWorkday(d)) futureAbsent += 1 - w;
+        }
+        if (i < 3000) { eta = d; weeksLeft = (eta - today) / DAY / 7; }
+    }
 
     const target = parseYMD(state.settings.targetDate);
     let requiredPace = null, onTrack = null, overdue = false;
     if (target && remaining > 0) {
         if (target < today) { overdue = true; onTrack = false; }
         else {
-            requiredPace = remaining / Math.max((target - today) / DAY / 7, 1 / 7);
+            const until = countDays(addDays(today, 1), target).avail;
+            requiredPace = remaining / Math.max(until / 5, 0.2);
             onTrack = pace >= requiredPace;
         }
     }
-    return { start, daysElapsed, pace, useRecent, remaining, weeksLeft, eta, target, requiredPace, onTrack, overdue, remainingMin: remaining * m.avgMapMin };
+    return {
+        start, daysElapsed, pace, useRecent, remaining, weeksLeft, eta, target, requiredPace, onTrack, overdue,
+        remainingMin: remaining * m.avgMapMin,
+        workDays: span.work, availDays: span.avail, absentDays, futureAbsent
+    };
 }
 
 // ===================== Contatos: análise (por setor) =====================
@@ -1238,7 +1372,7 @@ function analyzeSector(name, list) {
             if (c.result === 'rescheduled_area' || c.result === 'cancelled_area') meeting = null;
         } else {
             if (streak) {
-                const ms = Math.max(0, t - streak.start);
+                const ms = Math.max(0, t - streak.start - awayMs(streak.start, t));
                 waits.push(ms);
                 if (r.kind === 'response') responses.push(ms);
                 streak = null;
@@ -1254,15 +1388,16 @@ function analyzeSector(name, list) {
 
     let blocked = null;
     if (streak) {
-        waits.push(Math.max(0, end - streak.start));
+        waits.push(Math.max(0, end - streak.start - awayMs(streak.start, end)));
         const affected = pending.filter(p => streak.items.some(c => covers(c, p)));
         if (affected.length) {
             const follow = parseYMD(streak.last.followUp);
             blocked = {
                 sector: name, since: streak.start, attempts: streak.attempts, escalated: streak.escalated, last: streak.last,
-                days: Math.max(0, Math.floor((now - streak.start) / DAY)),
+                // Espera pausada nos dias em que a analista estava ausente
+                days: Math.max(0, Math.floor((now - streak.start - awayMs(streak.start, now)) / DAY)),
                 followUp: streak.last.followUp,
-                followDue: !!follow && follow <= startOfToday(),
+                followDue: !!follow && follow <= startOfToday() && (availability().away.get(ymd(now)) || 0) < 1,
                 shouldEscalate: !streak.escalated && streak.attempts >= state.settings.escalateAfter,
                 affected,
                 ids: new Set(affected.map(p => p.id))
@@ -1277,7 +1412,7 @@ function analyzeSector(name, list) {
         meetingIds: new Set(upcoming ? pending.filter(p => covers(upcoming, p)).map(p => p.id) : []),
         pendingCount: pending.length,
         waitMs: waits.reduce((s, w) => s + w, 0),
-        leadMs: first ? Math.max(0, end - first) : 0
+        leadMs: first ? Math.max(0, end - first - awayMs(first, end)) : 0
     };
 }
 
@@ -1436,7 +1571,7 @@ function renderDependencies(d) {
         { label: 'Taxa de resposta', val: rate == null ? '—' : `${rate}%`, sub: 'respostas ÷ tentativas' },
         { label: 'Tempo médio de resposta', val: d.avgResp == null ? '—' : fmtDays(d.avgResp), sub: 'da 1ª tentativa sem retorno até a resposta' },
         { label: 'Tempo em espera', val: share == null ? '—' : `${share}%`, alert: share != null && share >= 50,
-          sub: 'do tempo desde o 1º contato com cada setor, aguardando retorno' },
+          sub: 'do tempo desde o 1º contato com cada setor, aguardando retorno (suas ausências não contam)' },
         { label: 'Escalonamentos', val: d.escalations, sub: `sugerido após ${plural(state.settings.escalateAfter, 'tentativa', 'tentativas')} sem retorno` }
     ];
     $('#depKpis').innerHTML = cards.map(c => `<div class="dep-kpi${c.alert ? ' alert' : ''}">
@@ -1505,7 +1640,7 @@ function renderKpis(m, f) {
           title: 'Processos com fluxo desenhado (etapas Desenhando, Em Validação e Concluído)' },
         { icon: 'fa-calendar-day', tone: '--warn', label: 'Dias decorridos', value: f.daysElapsed, sub: `desde ${fmtDate(state.settings.startDate)}` },
         { icon: 'fa-flag-checkered', tone: '--ok', label: 'Previsão de término', value: etaValue,
-          sub: f.pace > 0 ? `ritmo de ${fmtNum(f.pace)} por semana` : 'ritmo ainda indefinido' }
+          sub: f.pace > 0 ? `ritmo de ${fmtNum(f.pace)} por semana disponível` : 'ritmo ainda indefinido' }
     ];
     $('#kpis').innerHTML = cards.map(c => `
         <div class="kpi panel" style="--tone: var(${c.tone})" ${c.title ? `title="${esc(c.title)}"` : ''}>
@@ -1575,7 +1710,7 @@ function renderForecast(m, f) {
         return;
     }
     const hero = f.eta
-        ? `<div class="fc-hero"><div class="lbl">Término previsto no ritmo atual</div><div class="big num">${fmtDateObj(f.eta)}</div><div class="small muted">em cerca de ${fmtNum(f.weeksLeft)} semana(s)</div></div>`
+        ? `<div class="fc-hero"><div class="lbl">Término previsto no ritmo atual</div><div class="big num">${fmtDateObj(f.eta)}</div><div class="small muted">em cerca de ${fmtNum(f.weeksLeft)} semana(s)${f.futureAbsent ? ` · já considera ${fmtNum(f.futureAbsent)} dia(s) útil(eis) de ausência programada` : ''}</div></div>`
         : `<div class="fc-hero"><div class="lbl">Término previsto</div><div class="big">—</div><div class="small muted">Conclua os primeiros processos para calcular o ritmo.</div></div>`;
 
     let targetRow;
@@ -1591,7 +1726,8 @@ function renderForecast(m, f) {
 
     el.innerHTML = `${hero}
         <div class="fc-list">
-            <div class="fc-row"><span class="k">Ritmo</span><span class="v num">${fmtNum(f.pace)} por semana<small>${f.useRecent ? 'média das últimas 4 semanas' : 'média desde o início'}</small></span></div>
+            <div class="fc-row"><span class="k">Ritmo</span><span class="v num">${fmtNum(f.pace)} por semana disponível<small>${f.useRecent ? 'média das últimas 4 semanas disponíveis' : 'média desde o início'}</small></span></div>
+            <div class="fc-row" title="Dias úteis desde o início do projeto em que você estava disponível. Ausências e feriados cadastrados em Setores e metas."><span class="k">Disponibilidade</span><span class="v num">${fmtNum(f.availDays)} de ${f.workDays} dias úteis (${f.workDays ? Math.round((f.availDays / f.workDays) * 100) : 100}%)<small>${f.absentDays ? `${fmtNum(f.absentDays)} dia(s) útil(eis) de ausência descontados do ritmo` : 'nenhuma ausência registrada'}</small></span></div>
             <div class="fc-row"><span class="k">Faltam</span><span class="v num">${f.remaining} processos<small>${m.avgMapMin ? `≈ ${fmtMin(f.remainingMin)} de entrevista + desenho` : 'sem tempos registrados'}</small></span></div>
             <div class="fc-row"><span class="k">Média por processo</span><span class="v num">${m.avgMapMin ? fmtMin(m.avgMapMin) : '—'}<small>entrevista + construção (concluídos)</small></span></div>
             ${targetRow}
@@ -1621,10 +1757,24 @@ function renderEvolution(m, f) {
     const cumPct = cumulative.map(n => (m.base ? Math.round((n / m.base) * 100) : 0));
     const labels = keys.map(k => { const [y, mo] = k.split('-'); return `${MONTHS[Number(mo) - 1]}/${y.slice(2)}`; });
 
+    // Dias úteis disponíveis em cada mês (do início do projeto até hoje) → comparação justa entre meses
+    const monthAvail = keys.map(k => {
+        const [y, mo] = k.split('-').map(Number);
+        const from = new Date(Math.max(new Date(y, mo - 1, 1), f.start));
+        const to = new Date(Math.min(new Date(y, mo, 0), today));
+        return from <= to ? countDays(from, to).avail : 0;
+    });
     $('#evoTable').innerHTML = keys.length ? `<table class="mini-table num">
-        <thead><tr><th>Mês</th><th>Entrevistas</th><th>Concluídos</th><th>Acumulado</th></tr></thead>
-        <tbody>${keys.map((k, i) => `<tr><td>${labels[i]}</td><td>${interviews[i]}</td><td>${dones[i]}</td><td>${cumulative[i]} <span class="muted">(${cumPct[i]}%)</span></td></tr>`).join('')}</tbody>
+        <thead><tr><th>Mês</th><th>Entrevistas</th><th>Concluídos</th><th title="Dias úteis em que você estava disponível">Dias disp.</th><th title="Concluídos por dia útil disponível">Concl./dia</th><th>Acumulado</th></tr></thead>
+        <tbody>${keys.map((k, i) => `<tr><td>${labels[i]}</td><td>${interviews[i]}</td><td>${dones[i]}</td><td>${fmtNum(monthAvail[i])}</td><td>${monthAvail[i] ? fmtNum(dones[i] / monthAvail[i], 2) : '—'}</td><td>${cumulative[i]} <span class="muted">(${cumPct[i]}%)</span></td></tr>`).join('')}</tbody>
     </table>` : '';
+
+    $('#absenceChips').innerHTML = state.absences.length
+        ? `<span class="small muted" style="align-self:center">Ausências e feriados considerados:</span>`
+          + [...state.absences].sort((a, b) => a.start.localeCompare(b.start)).map(a => `<span class="chip-stat">
+                <i class="fa-solid ${ABSENCE[a.type].icon}"></i> ${esc(ABSENCE[a.type].label)} <b>${fmtRange(a)}</b> · ${fmtWorkdays(absenceWorkdays(a))}${a.half ? ' (meio período)' : ''}
+            </span>`).join('')
+        : '';
 
     drawChart('evolutionChart', {
         type: 'bar',
@@ -2016,6 +2166,13 @@ function exportXlsx() {
     const ws4 = XLSX.utils.json_to_sheet(depRows.length ? depRows : [{ 'Setor contatado': 'Nenhum contato registrado' }]);
     ws4['!cols'] = [{ wch: 20 }, ...Array(10).fill({ wch: 16 })];
     XLSX.utils.book_append_sheet(wb, ws4, 'Dependências por setor');
+    const absRows = [...state.absences].sort((a, b) => a.start.localeCompare(b.start)).map(a => ({
+        'Tipo': ABSENCE[a.type].label, 'Início': fmtDate(a.start), 'Fim': fmtDate(a.end),
+        'Meio período': a.half ? 'Sim' : 'Não', 'Dias úteis': absenceWorkdays(a), 'Observação': a.note
+    }));
+    const ws5 = XLSX.utils.json_to_sheet(absRows.length ? absRows : [{ 'Tipo': 'Nenhuma ausência cadastrada' }]);
+    ws5['!cols'] = [{ wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 11 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, ws5, 'Ausências');
     XLSX.writeFile(wb, `Relatorio_Processos_${todayYMD()}.xlsx`);
     toast(`${rows.length} processos exportados.`, 'ok');
 }
@@ -2299,6 +2456,8 @@ function openSectors() {
     $('#sTarget').value = state.settings.targetDate;
     $('#sFollow').value = state.settings.followUpDays;
     $('#sEscalate').value = state.settings.escalateAfter;
+    resetAbsenceForm();
+    renderAbsenceList();
     openModal('sectorsModal');
 }
 
@@ -2375,6 +2534,79 @@ function updateSettings() {
     render();
 }
 
+// ----- Ausências -----
+function renderAbsenceList() {
+    const list = [...state.absences].sort((a, b) => b.start.localeCompare(a.start));
+    $('#absenceList').innerHTML = list.length ? list.map(a => `
+        <div class="absence-row">
+            <span><i class="fa-solid ${ABSENCE[a.type].icon}" style="color:var(--accent-2)"></i> <b>${esc(ABSENCE[a.type].label)}</b>${a.note ? `<span class="note">${esc(a.note)}</span>` : ''}</span>
+            <span class="num">${fmtRange(a)}${a.half ? ' <span class="muted">(meio período)</span>' : ''}</span>
+            <span class="small muted num">${fmtWorkdays(absenceWorkdays(a))}</span>
+            <span style="white-space:nowrap">
+                <button type="button" class="icon-btn" data-action="edit-absence" data-id="${a.id}" aria-label="Editar ausência"><i class="fa-solid fa-pen"></i></button>
+                <button type="button" class="icon-btn danger" data-action="delete-absence" data-id="${a.id}" aria-label="Excluir ausência"><i class="fa-solid fa-trash"></i></button>
+            </span>
+        </div>`).join('') : `<div class="hint">Nenhuma ausência cadastrada.</div>`;
+}
+
+function resetAbsenceForm() {
+    state.editingAbsence = null;
+    $('#aType').innerHTML = ABSENCE_TYPES.map(t => `<option value="${t.id}">${esc(t.label)}</option>`).join('');
+    $('#aType').value = 'vacation';
+    $('#aStart').value = '';
+    $('#aEnd').value = '';
+    $('#aNote').value = '';
+    $('#aHalf').checked = false;
+    $('#aHalfWrap').hidden = false;
+    $('#aCancel').hidden = true;
+    $('#aSubmit').innerHTML = '<i class="fa-solid fa-plus"></i> Adicionar';
+}
+
+function editAbsence(id) {
+    const a = state.absences.find(x => String(x.id) === String(id));
+    if (!a) return;
+    state.editingAbsence = a.id;
+    $('#aType').value = a.type;
+    $('#aStart').value = a.start;
+    $('#aEnd').value = a.end;
+    $('#aNote').value = a.note;
+    $('#aHalf').checked = a.half;
+    $('#aHalfWrap').hidden = a.type === 'holiday';
+    $('#aCancel').hidden = false;
+    $('#aSubmit').innerHTML = '<i class="fa-solid fa-check"></i> Salvar';
+    $('#aStart').focus();
+}
+
+function saveAbsence(e) {
+    e.preventDefault();
+    if (!canEdit()) return;
+    const start = $('#aStart').value, end = $('#aEnd').value || $('#aStart').value;
+    if (!isYMD(start) || !isYMD(end)) { toast('Informe as datas de início e fim.', 'warn'); return; }
+    if (end < start) { toast('A data de fim é anterior à de início.', 'warn'); $('#aEnd').focus(); return; }
+    if ((parseYMD(end) - parseYMD(start)) / DAY > 365) { toast('Cadastre períodos de até 1 ano.', 'warn'); return; }
+    const a = normalizeAbsence({ id: state.editingAbsence || uid(), type: $('#aType').value, start, end, half: $('#aHalf').checked, note: $('#aNote').value });
+    const overlap = state.absences.find(x => x.id !== a.id && (x.type === 'holiday') === (a.type === 'holiday') && x.start <= a.end && a.start <= x.end);
+    if (overlap && !confirm(`Este período se sobrepõe a “${ABSENCE[overlap.type].label} ${fmtRange(overlap)}”. Os dias em comum serão contados uma única vez.\n\nSalvar mesmo assim?`)) return;
+    const editing = state.editingAbsence != null;
+    if (editing) state.absences = state.absences.map(x => (x.id === a.id ? a : x));
+    else state.absences.push(a);
+    persist();
+    resetAbsenceForm();
+    renderAbsenceList();
+    render();
+    toast(`${ABSENCE[a.type].label} ${fmtRange(a)} ${editing ? 'atualizado' : 'registrado'} (${fmtWorkdays(absenceWorkdays(a))}).`, 'ok');
+}
+
+function deleteAbsence(id) {
+    const a = state.absences.find(x => String(x.id) === String(id));
+    if (!a || !confirm(`Excluir “${ABSENCE[a.type].label} ${fmtRange(a)}”?`)) return;
+    state.absences = state.absences.filter(x => x !== a);
+    if (state.editingAbsence === a.id) resetAbsenceForm();
+    persist();
+    renderAbsenceList();
+    render();
+}
+
 function resetAll() {
     if (!canEdit()) return;
     if (!confirm('ATENÇÃO: isto apaga TODOS os processos e setores deste navegador.\nRecomendo salvar um backup antes.\n\nContinuar?')) return;
@@ -2382,6 +2614,7 @@ function resetAll() {
     state.processes = [];
     state.sectors = [];
     state.contacts = [];
+    state.absences = [];
     persist();
     renderSectorList();
     render();
@@ -2426,7 +2659,8 @@ async function publish(e) {
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publicando…';
     try {
-        const payload = { ...exportPayload(), publishedAt: new Date().toISOString() };
+        // A observação das ausências é pessoal: fica no backup, mas nunca vai para o link público
+        const payload = { ...exportPayload(), absences: state.absences.map(({ note, ...a }) => a), publishedAt: new Date().toISOString() };
         const res = await fetch(`https://api.jsonbin.io/v3/b/${CONFIG.binId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', [header]: key },
@@ -2543,6 +2777,9 @@ const actions = {
     'edit-contact': t => canEdit() && openContactModal({ contactId: t.dataset.cid }),
     'delete-contact': t => canEdit() && deleteContact(t.dataset.cid),
     'escalate': () => canEdit() && escalate(),
+    'edit-absence': t => canEdit() && editAbsence(t.dataset.id),
+    'delete-absence': t => canEdit() && deleteAbsence(t.dataset.id),
+    'cancel-absence': () => resetAbsenceForm(),
     'close-modal': t => closeModal(t.closest('.modal').id),
     'open-sectors': () => canEdit() && openSectors(),
     'delete-sector': t => canEdit() && deleteSector(t.dataset.id),
@@ -2600,6 +2837,9 @@ function bindEvents() {
     $('#sFollow').addEventListener('change', updateSettings);
     $('#sEscalate').addEventListener('change', updateSettings);
     $('#contactForm').addEventListener('submit', saveContact);
+    $('#absenceForm').addEventListener('submit', saveAbsence);
+    $('#aType').addEventListener('change', e => { $('#aHalfWrap').hidden = e.target.value === 'holiday'; if (e.target.value === 'holiday') $('#aHalf').checked = false; });
+    $('#aStart').addEventListener('change', e => { if (!$('#aEnd').value || $('#aEnd').value < e.target.value) $('#aEnd').value = e.target.value; });
     $('#cResult').addEventListener('change', syncContactFields);
     $('#cAt').addEventListener('change', syncContactFields);
     $('#cFollow').addEventListener('input', () => { if (state.contactCtx) state.contactCtx.followTouched = true; });
